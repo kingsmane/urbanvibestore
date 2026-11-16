@@ -1,0 +1,6 @@
+{
+  "name": "UrbanStore — Curated Fashion E-Commerce",
+  "description": "Kurasi busana esensial pria dan wanita dengan presisi Swiss dan reduksi estetika Jepang. Dilengkapi panduan ukuran visual presisi dan checkout transparan.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
