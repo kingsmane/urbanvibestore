@@ -6,7 +6,7 @@
 import React, { Suspense, lazy } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
-import { FullPageLoader, GuestOnly, RequireAuth, RequireRole } from './auth/guards';
+import { FullPageLoader, GuestOnly, RequireRole } from './auth/guards';
 import { LoginView, RegisterView } from './components/auth/AuthViews';
 import ShopApp from './ShopApp';
 
@@ -14,7 +14,8 @@ const AdminApp = lazy(() => import('./components/admin/AdminApp'));
 
 /** Toko dibuat ulang (key) setiap pengguna berganti agar data tidak bocor antar akun. */
 function ShopGate() {
-  const { user } = useAuth();
+  const { user, status } = useAuth();
+  if (status === 'loading') return <FullPageLoader />;
   return <ShopApp key={user?.id ?? 'anon'} />;
 }
 
@@ -47,14 +48,7 @@ export default function App() {
           </RequireRole>
         }
       />
-      <Route
-        path="/*"
-        element={
-          <RequireAuth>
-            <ShopGate />
-          </RequireAuth>
-        }
-      />
+      <Route path="/*" element={<ShopGate />} />
     </Routes>
   );
 }

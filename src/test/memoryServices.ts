@@ -202,7 +202,6 @@ export function createMemoryServices(options: MemoryOptions = {}) {
 
     shop: {
       async listProducts() {
-        requireUser();
         return productsNow();
       },
       async listMyOrders() {

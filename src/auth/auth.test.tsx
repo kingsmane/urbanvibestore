@@ -11,13 +11,28 @@ const typeLogin = async (user: ReturnType<typeof userEvent.setup>, email: string
 };
 
 describe('penjaga rute (guards)', () => {
-  it('pengunjung yang belum login diarahkan ke halaman masuk dari halaman toko mana pun', async () => {
-    renderApp({ path: '/produk/prod-1', as: null });
-    expect(await screen.findByRole('heading', { name: 'Masuk' })).toBeInTheDocument();
+  it('pengunjung yang belum login dapat membuka beranda, detail produk, dan panduan ukuran', async () => {
+    for (const path of ['/', '/produk/prod-1', '/panduan-ukuran']) {
+      const { unmount } = renderApp({ path, as: null });
+      expect(await screen.findByRole('link', { name: 'Masuk' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Keluar' })).toBeNull();
+      unmount();
+    }
   });
 
-  it('pengunjung belum login tidak dapat membuka checkout, akun, maupun admin', async () => {
-    for (const path of ['/checkout', '/akun/orders', '/admin', '/admin/pesanan']) {
+  it('pengunjung belum login dapat menambah item ke keranjang lalu diarahkan ke masuk saat checkout', async () => {
+    const user = userEvent.setup();
+    renderApp({ path: '/produk/prod-2', as: null });
+    await user.click(await screen.findByRole('button', { name: /Tambah ke Keranjang/i }, { timeout: 5000 }));
+    await user.click(screen.getByRole('button', { name: 'Shopping Cart' }));
+    expect(await screen.findByRole('heading', { name: 'Masuk' })).toBeInTheDocument();
+    await typeLogin(user, CUSTOMER.email, CUSTOMER.password);
+    expect(await screen.findByText('Penyelesaian Pesanan')).toBeInTheDocument();
+    expect(screen.getByText(/Boxy Minimalist Linen Shirt/)).toBeInTheDocument();
+  });
+
+  it('pengunjung belum login tidak dapat membuka checkout, pesanan, akun, maupun admin', async () => {
+    for (const path of ['/checkout', '/pesanan/ord-1', '/akun/orders', '/admin', '/admin/pesanan']) {
       const { unmount } = renderApp({ path, as: null });
       expect(await screen.findByRole('heading', { name: 'Masuk' })).toBeInTheDocument();
       unmount();
@@ -59,11 +74,10 @@ describe('masuk', () => {
 
   it('kembali ke halaman yang semula dituju setelah masuk', async () => {
     const user = userEvent.setup();
-    renderApp({ path: '/produk/prod-2', as: null });
+    renderApp({ path: '/akun/orders', as: null });
     await typeLogin(user, CUSTOMER.email, CUSTOMER.password);
-    expect(
-      await screen.findByRole('heading', { level: 1, name: /Boxy Minimalist Linen Shirt/ })
-    ).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Keluar' })).toBeInTheDocument();
+    expect(await screen.findByText(/Riwayat Pesanan/i)).toBeInTheDocument();
   });
 
   it('customer tidak diarahkan ke /admin walau itu halaman semula', async () => {
@@ -158,12 +172,12 @@ describe('keluar', () => {
     expect(state.signOutCalls).toBe(1);
   });
 
-  it('setelah keluar, halaman toko tidak lagi dapat dibuka', async () => {
+  it('setelah keluar, halaman akun tidak lagi dapat dibuka tanpa masuk kembali', async () => {
     const user = userEvent.setup();
-    renderApp({ path: '/', as: 'customer' });
+    renderApp({ path: '/akun/orders', as: 'customer' });
     await user.click(await screen.findByRole('button', { name: 'Keluar' }));
     await screen.findByRole('heading', { name: 'Masuk' });
-    await waitFor(() => expect(screen.queryByPlaceholderText('Cari warna, material, nama...')).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Keluar' })).toBeNull());
   });
 
   it('admin melihat tautan Admin di toko dan dapat keluar dari panel', async () => {

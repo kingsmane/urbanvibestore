@@ -1,10 +1,11 @@
 import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Order, OrderItemSnapshot, Product } from './data/storeData';
+import { CartItem, Order, OrderItemSnapshot, Product } from './data/storeData';
 import { Layout, PageRoute } from './components/Layout';
 import { NotFoundView } from './components/NotFoundView';
 import type { PlaceOrderOptions } from './components/CheckoutView';
 import { useAuth } from './auth/AuthContext';
+import { RequireAuth } from './auth/guards';
 import { useCart } from './hooks/useCart';
 import { useShopData } from './hooks/useShopData';
 import { useToast } from './hooks/useToast';
@@ -46,13 +47,45 @@ const SectionLoader: React.FC<{ label?: string }> = ({ label = 'Memuat…' }) =>
   </div>
 );
 
-/** Aplikasi toko untuk pengguna yang sudah masuk. Di-mount dengan key = id pengguna. */
+const CART_PREFIX = 'urbanstore_cart_v2:';
+
+/** Pindahkan item keranjang tamu ke keranjang akun saat pengguna masuk. */
+function mergeAnonCart(userId: string): void {
+  try {
+    const anonKey = `${CART_PREFIX}anon`;
+    const rawAnon = window.localStorage.getItem(anonKey);
+    if (!rawAnon) return;
+    const anonItems = JSON.parse(rawAnon) as CartItem[];
+    window.localStorage.removeItem(anonKey);
+    if (!Array.isArray(anonItems) || anonItems.length === 0) return;
+
+    const userKey = `${CART_PREFIX}${userId}`;
+    const rawUser = window.localStorage.getItem(userKey);
+    const merged: CartItem[] = rawUser ? (JSON.parse(rawUser) as CartItem[]) : [];
+    for (const item of anonItems) {
+      const existing = merged.find(
+        (m) => m.productId === item.productId && m.size === item.size && m.color === item.color
+      );
+      if (existing) existing.quantity += item.quantity;
+      else merged.push(item);
+    }
+    window.localStorage.setItem(userKey, JSON.stringify(merged));
+  } catch {
+    /* abaikan bila storage tidak tersedia atau rusak */
+  }
+}
+
+/** Aplikasi toko (dapat diakses pengunjung maupun pengguna yang sudah masuk). Di-mount dengan key = id pengguna. */
 export default function ShopApp() {
   const location = useLocation();
   const navigate = useNavigate();
   const { shop } = useServices();
-  const { user, profile, isAdmin, signOut } = useAuth();
+  const { user, profile, isAdmin, status, signOut } = useAuth();
   const currentPage: PageRoute = pageFromPath(location.pathname);
+
+  if (user?.id) {
+    mergeAnonCart(user.id);
+  }
 
   const [activeCategory, setActiveCategory] = useState<string>('Semua');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -63,11 +96,11 @@ export default function ShopApp() {
   }, []);
 
   const { toastMessage, toastSubtext, showToast } = useToast();
-  const data = useShopData();
+  const data = useShopData({ isAuthenticated: status === 'authenticated' });
   const { cart, addToCart, addBundle, updateQty, removeItem, clearCart, totalItems } = useCart({
     showToast,
     products: data.products,
-    storageKey: `urbanstore_cart_v2:${user?.id ?? 'anon'}`,
+    storageKey: `${CART_PREFIX}${user?.id ?? 'anon'}`,
   });
 
   // Scroll setiap perpindahan halaman (atau ke anchor bila diminta).
@@ -203,8 +236,8 @@ export default function ShopApp() {
       onNavigate={handleNavigate}
       toastMessage={toastMessage}
       toastSubtext={toastSubtext}
-      account={{ name: accountName, email: user?.email ?? '', isAdmin }}
-      onSignOut={handleSignOut}
+      account={user ? { name: accountName, email: user.email ?? '', isAdmin } : undefined}
+      onSignOut={user ? handleSignOut : undefined}
       onSubscribeNewsletter={handleSubscribeNewsletter}
     >
       {data.catalogError && (
@@ -294,56 +327,69 @@ export default function ShopApp() {
           <Route
             path="/checkout"
             element={
-              <CheckoutView
-                cart={cart}
-                profile={profile}
-                defaultAddress={data.addresses.find((a) => a.isPrimary) ?? data.addresses[0]}
-                onUpdateQty={updateQty}
-                onRemoveItem={removeItem}
-                onOpenProduct={openProduct}
-                onNavigateCatalog={() => goHome()}
-                onPlaceOrder={handlePlaceOrder}
-                onValidateVoucher={(code, subtotal) => shop.validateVoucher(code, subtotal)}
-              />
+              <RequireAuth>
+                <CheckoutView
+                  cart={cart}
+                  profile={profile}
+                  defaultAddress={data.addresses.find((a) => a.isPrimary) ?? data.addresses[0]}
+                  onUpdateQty={updateQty}
+                  onRemoveItem={removeItem}
+                  onOpenProduct={openProduct}
+                  onNavigateCatalog={() => goHome()}
+                  onPlaceOrder={handlePlaceOrder}
+                  onValidateVoucher={(code, subtotal) => shop.validateVoucher(code, subtotal)}
+                />
+              </RequireAuth>
             }
           />
 
           <Route
             path="/pesanan/:orderId"
             element={
-              <OrderRoute
-                orders={data.orders}
-                ordersLoaded={data.ordersLoaded}
-                onNavigateCatalog={() => goHome()}
-                onNavigateAccount={() => navigate(paths.account('orders'))}
-                onRefresh={handleRefreshOrder}
-                onCancelOrder={handleCancelOrder}
-                onMissing={() => navigate(paths.account('orders'), { replace: true })}
-              />
+              <RequireAuth>
+                <OrderRoute
+                  orders={data.orders}
+                  ordersLoaded={data.ordersLoaded}
+                  onNavigateCatalog={() => goHome()}
+                  onNavigateAccount={() => navigate(paths.account('orders'))}
+                  onRefresh={handleRefreshOrder}
+                  onCancelOrder={handleCancelOrder}
+                  onMissing={() => navigate(paths.account('orders'), { replace: true })}
+                />
+              </RequireAuth>
             }
           />
 
-          <Route path="/akun" element={<Navigate to={paths.account('orders')} replace />} />
+          <Route
+            path="/akun"
+            element={
+              <RequireAuth>
+                <Navigate to={paths.account('orders')} replace />
+              </RequireAuth>
+            }
+          />
           <Route
             path="/akun/:tab"
             element={
-              <AccountRoute
-                orders={data.orders}
-                addresses={data.addresses}
-                fitProfile={data.fitProfile}
-                products={data.products}
-                profile={profile}
-                onSaveAddress={data.saveAddress}
-                onSetPrimaryAddress={data.setPrimaryAddress}
-                onNavigateHome={() => goHome('Semua', 'top')}
-                onNavigateSizeGuide={() => navigate(paths.sizeGuide())}
-                onPayOrder={(ord) => navigate(paths.order(ord.id))}
-                onCancelOrder={handleCancelOrder}
-                onReorderItem={handleReorder}
-                onOpenProduct={openProduct}
-                onShowToast={showToast}
-                onTabChange={(tab) => navigate(paths.account(tab), { replace: true })}
-              />
+              <RequireAuth>
+                <AccountRoute
+                  orders={data.orders}
+                  addresses={data.addresses}
+                  fitProfile={data.fitProfile}
+                  products={data.products}
+                  profile={profile}
+                  onSaveAddress={data.saveAddress}
+                  onSetPrimaryAddress={data.setPrimaryAddress}
+                  onNavigateHome={() => goHome('Semua', 'top')}
+                  onNavigateSizeGuide={() => navigate(paths.sizeGuide())}
+                  onPayOrder={(ord) => navigate(paths.order(ord.id))}
+                  onCancelOrder={handleCancelOrder}
+                  onReorderItem={handleReorder}
+                  onOpenProduct={openProduct}
+                  onShowToast={showToast}
+                  onTabChange={(tab) => navigate(paths.account(tab), { replace: true })}
+                />
+              </RequireAuth>
             }
           />
 

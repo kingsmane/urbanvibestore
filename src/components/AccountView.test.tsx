@@ -105,7 +105,8 @@ describe('AccountView', () => {
     const user = userEvent.setup();
     const { state } = renderApp({ path: '/akun/addresses', ...seeded });
     await screen.findByRole('button', { name: /Tambah Alamat Baru/ });
-    await user.click(screen.getAllByRole('button', { name: /Jadikan Utama/i })[0]);
+    const setPrimaryButtons = await screen.findAllByRole('button', { name: /Jadikan Utama/i });
+    await user.click(setPrimaryButtons[0]);
     await waitFor(() => {
       const primary = state.addresses.filter((a) => a.isPrimary);
       expect(primary).toHaveLength(1);

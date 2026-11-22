@@ -5,10 +5,11 @@ import { useServices } from '../services/ServicesContext';
 import type { AddressInput } from '../services/types';
 
 /**
- * Seluruh data belanja milik pengguna yang sedang login (katalog, pesanan,
- * alamat, fit profile), dimuat dari server.
+ * Seluruh data belanja (katalog publik, serta pesanan, alamat, dan fit profile
+ * bila pengguna sudah login), dimuat dari server.
  */
-export function useShopData() {
+export function useShopData(options: { isAuthenticated?: boolean } = {}) {
+  const { isAuthenticated = true } = options;
   const { shop } = useServices();
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -68,13 +69,21 @@ export function useShopData() {
 
   useEffect(() => {
     void loadProducts();
+    if (!isAuthenticated) {
+      setOrders([]);
+      setOrdersLoaded(false);
+      setAddresses([]);
+      setAddressesLoaded(false);
+      setFitProfileState(null);
+      return;
+    }
     void loadOrders();
     void loadAddresses();
     shop
       .getFitProfile()
       .then((p) => alive.current && setFitProfileState(p))
       .catch(() => undefined);
-  }, [shop, loadProducts, loadOrders, loadAddresses]);
+  }, [shop, isAuthenticated, loadProducts, loadOrders, loadAddresses]);
 
   const saveAddress = useCallback(
     async (input: AddressInput) => {
@@ -95,9 +104,11 @@ export function useShopData() {
   const saveFitProfile = useCallback(
     async (profile: FitProfile) => {
       setFitProfileState(profile); // optimistik; server menyimpan di latar belakang
-      await shop.saveFitProfile(profile);
+      if (isAuthenticated) {
+        await shop.saveFitProfile(profile);
+      }
     },
-    [shop]
+    [shop, isAuthenticated]
   );
 
   return {

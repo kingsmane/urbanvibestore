@@ -174,54 +174,65 @@ export const SiteHeader: React.FC<SiteHeaderProps> = ({
                 </span>
               </button>
 
-              <div className="hidden md:flex items-center border-l border-border-hairline pl-space-sm ml-space-xs gap-space-xs">
-                <button
-                  type="button"
-                  onClick={() => onNavigate('account', { accountTab: 'orders' })}
-                  className={`font-label-caps text-label-caps uppercase px-space-xs py-1 transition-colors whitespace-nowrap cursor-pointer ${
-                    currentPage === 'account'
-                      ? 'text-primary font-bold'
-                      : 'text-on-surface-variant hover:text-primary'
-                  }`}
-                >
-                  Riwayat Pesanan
-                </button>
-              </div>
+              {account ? (
+                <>
+                  <div className="hidden md:flex items-center border-l border-border-hairline pl-space-sm ml-space-xs gap-space-xs">
+                    <button
+                      type="button"
+                      onClick={() => onNavigate('account', { accountTab: 'orders' })}
+                      className={`font-label-caps text-label-caps uppercase px-space-xs py-1 transition-colors whitespace-nowrap cursor-pointer ${
+                        currentPage === 'account'
+                          ? 'text-primary font-bold'
+                          : 'text-on-surface-variant hover:text-primary'
+                      }`}
+                    >
+                      Riwayat Pesanan
+                    </button>
+                  </div>
 
-              <button
-                type="button"
-                aria-label="Akun Pengguna"
-                onClick={() => onNavigate('account')}
-                className="ml-space-xs shrink-0 flex items-center gap-space-xs group cursor-pointer"
-              >
-                <span
-                  aria-hidden="true"
-                  className="w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center font-label-caps text-label-caps border border-border-hairline group-hover:bg-badge-promo group-hover:text-text-on-accent transition-colors"
-                >
-                  {(account?.name || account?.email || '?').trim().charAt(0).toUpperCase()}
-                </span>
-                <span className="font-label-caps text-label-caps uppercase text-on-surface-variant group-hover:text-primary hidden xl:inline transition-colors max-w-[10rem] truncate">
-                  {account?.name || 'Akun Saya'}
-                </span>
-              </button>
-              {account?.isAdmin && (
+                  <button
+                    type="button"
+                    aria-label="Akun Pengguna"
+                    onClick={() => onNavigate('account')}
+                    className="ml-space-xs shrink-0 flex items-center gap-space-xs group cursor-pointer"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center font-label-caps text-label-caps border border-border-hairline group-hover:bg-badge-promo group-hover:text-text-on-accent transition-colors"
+                    >
+                      {(account.name || account.email || '?').trim().charAt(0).toUpperCase()}
+                    </span>
+                    <span className="font-label-caps text-label-caps uppercase text-on-surface-variant group-hover:text-primary hidden xl:inline transition-colors max-w-[10rem] truncate">
+                      {account.name || 'Akun Saya'}
+                    </span>
+                  </button>
+                  {account.isAdmin && (
+                    <Link
+                      to="/admin"
+                      className="shrink-0 px-space-sm py-1 bg-badge-promo text-text-on-accent font-label-caps text-label-caps uppercase font-bold hover:bg-primary hover:text-on-primary transition-colors"
+                    >
+                      Admin
+                    </Link>
+                  )}
+                  {onSignOut && (
+                    <button
+                      type="button"
+                      aria-label="Keluar"
+                      onClick={onSignOut}
+                      className="shrink-0 flex items-center gap-1 font-label-caps text-label-caps uppercase text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[20px]" aria-hidden="true">logout</span>
+                      <span className="hidden xl:inline">Keluar</span>
+                    </button>
+                  )}
+                </>
+              ) : (
                 <Link
-                  to="/admin"
-                  className="shrink-0 px-space-sm py-1 bg-badge-promo text-text-on-accent font-label-caps text-label-caps uppercase font-bold hover:bg-primary hover:text-on-primary transition-colors"
+                  to="/masuk"
+                  className="ml-space-xs shrink-0 px-space-md py-1.5 bg-primary text-on-primary font-label-caps text-label-caps uppercase tracking-widest hover:bg-badge-promo hover:text-text-on-accent transition-colors"
                 >
-                  Admin
+                  Masuk
                 </Link>
-              )}
-              {onSignOut && (
-                <button
-                  type="button"
-                  aria-label="Keluar"
-                  onClick={onSignOut}
-                  className="shrink-0 flex items-center gap-1 font-label-caps text-label-caps uppercase text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-[20px]" aria-hidden="true">logout</span>
-                  <span className="hidden xl:inline">Keluar</span>
-                </button>
               )}
             </div>
           </div>
