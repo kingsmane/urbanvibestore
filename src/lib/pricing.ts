@@ -1,5 +1,7 @@
 /** Subtotal minimum (sebelum kupon) agar kurir reguler gratis. Lihat kebijakan di halaman produk. */
 export const FREE_SHIPPING_MIN_SUBTOTAL = 500000;
+/** Biaya layanan sistem (ditampilkan di ringkasan; server memakai app_settings.service_fee). */
+export const SERVICE_FEE = 1000;
 /** Hanya kurir reguler yang digratiskan; kurir lebih cepat tetap berbayar penuh. */
 export const FREE_SHIPPING_COURIER_ID = 'jnt';
 

@@ -14,6 +14,7 @@ interface CartSummaryProps {
   voucherError: string | null;
   handleApplyVoucher: () => void;
   isSubmitting: boolean;
+  submitError: string | null;
   subtotal: number;
   totalItems: number;
   shippingFee: number;
@@ -39,6 +40,7 @@ export const CartSummary: React.FC<CartSummaryProps> = ({
   voucherError,
   handleApplyVoucher,
   isSubmitting,
+  submitError,
   subtotal,
   totalItems,
   shippingFee,
@@ -274,6 +276,14 @@ export const CartSummary: React.FC<CartSummaryProps> = ({
 
           {/* Primary Checkout CTA Button */}
           <div className="mt-space-md space-y-space-xs">
+            {submitError && (
+              <p
+                role="alert"
+                className="mb-space-sm font-body-sm text-body-sm text-error font-medium bg-error-container p-space-sm"
+              >
+                {submitError}
+              </p>
+            )}
             <button
               type="button"
               disabled={isSubmitting}

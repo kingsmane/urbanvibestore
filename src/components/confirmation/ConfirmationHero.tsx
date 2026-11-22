@@ -1,5 +1,6 @@
 import React from 'react';
 import { Order } from '../../data/storeData';
+import { ORDER_STATUS_LABEL, isAwaitingPayment, isClosedUnpaid } from '../../lib/orderStatus';
 
 interface ConfirmationHeroProps {
   order: Order;
@@ -30,13 +31,17 @@ export const ConfirmationHero: React.FC<ConfirmationHeroProps> = ({
               </span>
             </div>
             <span className="bg-primary text-on-primary px-space-sm py-1 font-label-caps text-label-caps uppercase tracking-wider">
-              {order.status === 'PENDING_PAYMENT'
+              {isAwaitingPayment(order.status)
                 ? 'Pesanan Diterima • Menunggu Pelunasan'
-                : 'Pembayaran Terverifikasi • Diproses Gudang'}
+                : isClosedUnpaid(order.status)
+                  ? ORDER_STATUS_LABEL[order.status]
+                  : `Pembayaran Terverifikasi • ${ORDER_STATUS_LABEL[order.status]}`}
             </span>
           </div>
           <h1 className="font-headline-lg text-headline-lg md:font-display md:text-display uppercase tracking-tight text-primary leading-none">
-            Terima Kasih, Pesanan Anda Telah Diterima.
+            {isClosedUnpaid(order.status)
+              ? 'Pesanan Ini Tidak Dilanjutkan.'
+              : 'Terima Kasih, Pesanan Anda Telah Diterima.'}
           </h1>
         </div>
 
@@ -63,7 +68,8 @@ export const ConfirmationHero: React.FC<ConfirmationHeroProps> = ({
             </button>
           </div>
 
-          {/* Countdown Pill */}
+          {/* Countdown Pill (hanya saat menunggu pembayaran) */}
+          {isAwaitingPayment(order.status) && (
           <div className="bg-badge-soldout text-on-primary px-space-md py-2 flex items-center gap-space-sm w-full sm:w-auto justify-between sm:justify-start">
             <span className="material-symbols-outlined text-[18px] text-badge-promo animate-pulse">
               timer
@@ -75,6 +81,7 @@ export const ConfirmationHero: React.FC<ConfirmationHeroProps> = ({
               {formatTimer(secondsLeft)}
             </span>
           </div>
+          )}
         </div>
       </div>
 

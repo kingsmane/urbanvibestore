@@ -1,10 +1,12 @@
 import React from 'react';
 import { Order, SavedAddress } from '../../data/storeData';
+import type { Profile } from '../../services/types';
 import type { AccountTab } from '../../routes/paths';
 
 interface ProfileHeaderProps {
   orders: Order[];
   addresses: SavedAddress[];
+  profile: Profile | null;
   onNavigateHome: () => void;
   activeTab: AccountTab;
   changeTab: (tab: AccountTab) => void;
@@ -14,6 +16,7 @@ interface ProfileHeaderProps {
 export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   orders,
   addresses,
+  profile,
   onNavigateHome,
   activeTab,
   changeTab,
@@ -42,12 +45,12 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
           {/* User Bio Block */}
           <div className="lg:col-span-6 flex items-start gap-space-md">
             <div className="relative shrink-0">
-              <img
-                alt="Naya Rahmadani"
-                referrerPolicy="no-referrer"
-                className="w-20 h-20 md:w-24 md:h-24 object-cover border border-border-strong bg-surface-muted"
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuDP9KKlBDfy2uA42LrN4kNf5TeAoNWc7oaBngNFtdLENMk1dbg-K-jNN_weY0ZldlyOjoOlNYbBS7JvTk7jP8ff0lm1zmfkPC7meFmg9Lu9fwk9Xp80RYkbZ9QBM3bP79sHdH0av5UAKQf7C-JM0VzBFRZDX_UWFl_xfNYzNsCaQbwmRM3BCFkJ0tqiyI6H3CL1a3HldY9UO7HPhhnakyar9_MFxtuYuQs4w02DEJhG"
-              />
+              <div
+                aria-hidden="true"
+                className="w-20 h-20 md:w-24 md:h-24 flex items-center justify-center border border-border-strong bg-primary text-on-primary font-display text-[2.5rem] font-bold"
+              >
+                {(profile?.fullName || profile?.email || '?').trim().charAt(0).toUpperCase()}
+              </div>
               <div
                 className="absolute -bottom-1 -right-1 bg-badge-promo text-text-on-accent p-0.5 border border-border-strong"
                 title="Akun Terverifikasi"
@@ -60,7 +63,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
             <div className="space-y-space-xs">
               <div className="flex flex-wrap items-center gap-space-xs">
                 <h1 className="font-headline-md text-headline-md uppercase tracking-tight text-primary">
-                  Naya Rahmadani
+                  {profile?.fullName || 'Pelanggan UrbanStore'}
                 </h1>
                 <span className="bg-surface-muted text-on-surface border border-border-hairline font-label-caps text-label-caps uppercase px-space-xs py-0.5">
                   Active Shopper
@@ -68,17 +71,17 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
               </div>
               <p className="font-body-sm text-body-sm text-on-surface-variant flex items-center gap-space-xs">
                 <span className="material-symbols-outlined text-[16px] text-outline">mail</span>
-                naya.rahmadani@email.com
+                {profile?.email}
               </p>
               <div className="flex flex-wrap items-center gap-x-space-md gap-y-1 pt-space-xs">
-                <span className="font-body-sm text-body-sm text-on-surface-variant flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[16px] text-secondary">
-                    chat
+                {profile?.phone && (
+                  <span className="font-body-sm text-body-sm text-on-surface-variant flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[16px] text-secondary">chat</span>
+                    {profile.phone}
                   </span>
-                  WhatsApp Terverifikasi (+62 812-****-4491)
-                </span>
+                )}
                 <span className="text-outline font-label-caps text-label-caps uppercase">
-                  Member Sejak: Okt 2024
+                  {profile?.createdAt ? `Member Sejak: ${new Date(profile.createdAt).toLocaleDateString('id-ID', { month: 'short', year: 'numeric' })}` : ''}
                 </span>
               </div>
             </div>

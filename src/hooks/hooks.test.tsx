@@ -4,7 +4,7 @@ import { PRODUCTS } from '../data/storeData';
 import { isArrayOf, isObjectWith, usePersistentState } from './usePersistentState';
 import { useCart } from './useCart';
 
-const tee = PRODUCTS.find((p) => p.id === 'prod-1')!;
+const tee = PRODUCTS.find((p) => p.id === 'prod-1')!; // stok: S3 M12 L15 XL0 XXL1
 const blazerSoldOut = PRODUCTS.find((p) => p.isSoldOut)!;
 
 describe('usePersistentState', () => {
@@ -47,17 +47,20 @@ describe('usePersistentState', () => {
 });
 
 describe('useCart', () => {
+  const setup = (showToast = vi.fn(), storageKey?: string) =>
+    renderHook(() => useCart({ showToast, products: PRODUCTS, storageKey }));
+
   it('keranjang awal kosong', () => {
-    const { result } = renderHook(() => useCart(vi.fn()));
+    const { result } = setup();
     expect(result.current.cart).toEqual([]);
     expect(result.current.totalItems).toBe(0);
   });
 
   it('menambah produk dan menggabungkan varian yang sama', () => {
     const toast = vi.fn();
-    const { result } = renderHook(() => useCart(toast));
-    act(() => result.current.addToCart(tee, 'M', 'Chalk White'));
-    act(() => result.current.addToCart(tee, 'M', 'Chalk White'));
+    const { result } = setup(toast);
+    act(() => void result.current.addToCart(tee, 'M', 'Chalk White'));
+    act(() => void result.current.addToCart(tee, 'M', 'Chalk White'));
     expect(result.current.cart).toHaveLength(1);
     expect(result.current.cart[0].quantity).toBe(2);
     expect(result.current.totalItems).toBe(2);
@@ -65,43 +68,81 @@ describe('useCart', () => {
   });
 
   it('ukuran/warna berbeda menjadi baris terpisah', () => {
-    const { result } = renderHook(() => useCart(vi.fn()));
-    act(() => result.current.addToCart(tee, 'M', 'Chalk White'));
-    act(() => result.current.addToCart(tee, 'L', 'Chalk White'));
+    const { result } = setup();
+    act(() => void result.current.addToCart(tee, 'M', 'Chalk White'));
+    act(() => void result.current.addToCart(tee, 'L', 'Chalk White'));
     expect(result.current.cart).toHaveLength(2);
   });
 
   it('produk habis tidak bisa ditambahkan', () => {
-    const { result } = renderHook(() => useCart(vi.fn()));
-    act(() => result.current.addToCart(blazerSoldOut));
+    const { result } = setup();
+    let ok = true;
+    act(() => {
+      ok = result.current.addToCart(blazerSoldOut);
+    });
+    expect(ok).toBe(false);
     expect(result.current.cart).toHaveLength(0);
   });
 
-  it('qty tidak turun di bawah 1 dan item bisa dihapus', () => {
-    const { result } = renderHook(() => useCart(vi.fn()));
-    act(() => result.current.addToCart(tee, 'M', 'Chalk White'));
-    const id = result.current.cart[0].id;
-    act(() => result.current.updateQty(id, -5));
+  it('qty tidak melebihi stok ukuran (PRD CART-07)', () => {
+    const toast = vi.fn();
+    const { result } = setup(toast);
+    // ukuran XXL stok 1
+    act(() => void result.current.addToCart(tee, 'XXL', 'Chalk White'));
     expect(result.current.cart[0].quantity).toBe(1);
+    let ok = true;
+    act(() => {
+      ok = result.current.addToCart(tee, 'XXL', 'Chalk White');
+    });
+    expect(ok).toBe(false);
+    expect(result.current.cart[0].quantity).toBe(1);
+    expect(toast).toHaveBeenLastCalledWith(expect.stringContaining('hanya 1'), expect.any(String));
+  });
+
+  it('stok dibagi lintas warna pada ukuran yang sama', () => {
+    const { result } = setup();
+    act(() => void result.current.addToCart(tee, 'XXL', 'Chalk White'));
+    let ok = true;
+    act(() => {
+      ok = result.current.addToCart(tee, 'XXL', 'Charcoal Black');
+    });
+    expect(ok).toBe(false);
+    expect(result.current.cart).toHaveLength(1);
+  });
+
+  it('updateQty dibatasi stok dan minimal 1; item dapat dihapus', () => {
+    const { result } = setup();
+    // ukuran S stok 3
+    act(() => void result.current.addToCart(tee, 'S', 'Chalk White'));
+    const id = result.current.cart[0].id;
+    act(() => result.current.updateQty(id, 10));
+    expect(result.current.cart[0].quantity).toBe(1); // 11 > stok 3, ditolak
     act(() => result.current.updateQty(id, 2));
     expect(result.current.cart[0].quantity).toBe(3);
+    act(() => result.current.updateQty(id, 1));
+    expect(result.current.cart[0].quantity).toBe(3);
+    act(() => result.current.updateQty(id, -9));
+    expect(result.current.cart[0].quantity).toBe(1);
     act(() => result.current.removeItem(id));
     expect(result.current.cart).toHaveLength(0);
   });
 
   it('bundle menambah dua produk; clearCart mengosongkan', () => {
-    const { result } = renderHook(() => useCart(vi.fn()));
+    const { result } = setup();
     act(() => result.current.addBundle());
     expect(result.current.cart).toHaveLength(2);
     act(() => result.current.clearCart());
     expect(result.current.cart).toHaveLength(0);
   });
 
-  it('cart dipulihkan dari localStorage', () => {
-    const first = renderHook(() => useCart(vi.fn()));
-    act(() => first.result.current.addToCart(tee, 'M', 'Chalk White'));
+  it('cart dipulihkan dari localStorage per kunci pengguna', () => {
+    const first = setup(vi.fn(), 'cart:user-a');
+    act(() => void first.result.current.addToCart(tee, 'M', 'Chalk White'));
     first.unmount();
-    const second = renderHook(() => useCart(vi.fn()));
-    expect(second.result.current.cart).toHaveLength(1);
+
+    const same = setup(vi.fn(), 'cart:user-a');
+    expect(same.result.current.cart).toHaveLength(1);
+    const other = setup(vi.fn(), 'cart:user-b');
+    expect(other.result.current.cart).toHaveLength(0); // keranjang tidak bocor antar akun
   });
 });

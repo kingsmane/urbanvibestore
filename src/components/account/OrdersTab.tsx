@@ -1,34 +1,37 @@
 import React from 'react';
-import { Order, formatRupiah } from '../../data/storeData';
+import { Order, OrderItemSnapshot, formatRupiah } from '../../data/storeData';
+import { OrderSummaryCard } from './OrderSummaryCard';
 
 interface OrdersTabProps {
   orders: Order[];
   onPayOrder: (order: Order) => void;
-  onReorderItem: (name: string, price: number, image: string) => void;
-  countdownSec: number;
+  onReorderItem: (item: OrderItemSnapshot) => void;
+  onCancelOrder: (orderId: string) => void;
+  nowMs: number;
   copiedVa: boolean;
   checkingOrderId: string | null;
   checkResultText: Record<string, string>;
-  setTrackingModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  setTrackingOrder: React.Dispatch<React.SetStateAction<Order | null>>;
   setInvoiceModalOrder: React.Dispatch<React.SetStateAction<Order | null>>;
   formatTimer: (sec: number) => string;
   handleCopyVa: (text: string) => void;
-  handleSimulateCheck: (orderId: string) => void;
+  handleCheckStatus: (orderId: string) => void;
 }
 
 export const OrdersTab: React.FC<OrdersTabProps> = ({
   orders,
   onPayOrder,
   onReorderItem,
-  countdownSec,
+  onCancelOrder,
+  nowMs,
   copiedVa,
   checkingOrderId,
   checkResultText,
-  setTrackingModalOpen,
+  setTrackingOrder,
   setInvoiceModalOrder,
   formatTimer,
   handleCopyVa,
-  handleSimulateCheck,
+  handleCheckStatus,
 }) => {
   return (
     <>
@@ -59,7 +62,7 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({
                       <span>
                         Batas Bayar:{' '}
                         <strong className="font-semibold">
-                          {formatTimer(countdownSec)}
+                          {formatTimer(ord.paymentExpiresAt ? Math.max(0, Math.floor((new Date(ord.paymentExpiresAt).getTime() - nowMs) / 1000)) : 0)}
                         </strong>{' '}
                         tersisa
                       </span>
@@ -154,13 +157,13 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({
                       notifications_active
                     </span>
                     <span className="font-body-sm text-body-sm">
-                      Instruksi &amp; panduan transfer terkirim ke WhatsApp Naya
+                      Nomor Virtual Account dan panduan bayar ada di halaman pesanan
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-space-sm w-full sm:w-auto">
                     <button
                       type="button"
-                      onClick={() => handleSimulateCheck(ord.id)}
+                      onClick={() => handleCheckStatus(ord.id)}
                       className="flex-1 sm:flex-initial px-space-md py-2.5 font-label-caps text-label-caps uppercase bg-canvas-base text-primary border border-border-strong hover:bg-surface-muted transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <span
@@ -178,6 +181,13 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({
                     </button>
                     <button
                       type="button"
+                      onClick={() => onCancelOrder(ord.id)}
+                      className="flex-1 sm:flex-initial px-space-md py-2.5 font-label-caps text-label-caps uppercase bg-surface-muted text-on-surface hover:bg-surface-variant transition-colors cursor-pointer"
+                    >
+                      Batalkan
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => onPayOrder(ord)}
                       className="flex-1 sm:flex-initial px-space-lg py-2.5 font-label-caps text-label-caps uppercase bg-badge-promo text-text-on-accent hover:bg-primary hover:text-on-primary transition-colors flex items-center justify-center gap-1.5 font-bold cursor-pointer"
                     >
@@ -189,6 +199,17 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({
                   </div>
                 </div>
               </div>
+            );
+          }
+
+          if (ord.status !== 'IN_TRANSIT' && ord.status !== 'COMPLETED') {
+            return (
+              <OrderSummaryCard
+                key={ord.id}
+                order={ord}
+                onReorderItem={onReorderItem}
+                onOpenInvoice={setInvoiceModalOrder}
+              />
             );
           }
 
@@ -299,7 +320,7 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({
                   <div className="flex items-center gap-space-sm">
                     <button
                       type="button"
-                      onClick={() => setTrackingModalOpen(true)}
+                      onClick={() => setTrackingOrder(ord)}
                       className="px-space-md py-2 font-label-caps text-label-caps uppercase bg-canvas-base border border-border-strong text-primary hover:bg-surface-muted transition-colors flex items-center gap-1.5 cursor-pointer"
                     >
                       <span className="material-symbols-outlined text-[16px]">
@@ -407,7 +428,7 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({
                     onClick={() => {
                       const first = ord.items[0];
                       if (first) {
-                        onReorderItem(first.name, first.price, first.image);
+                        onReorderItem(first);
                       }
                     }}
                     className="px-space-md py-2 font-label-caps text-label-caps uppercase bg-primary text-on-primary hover:bg-badge-promo hover:text-text-on-accent transition-colors flex items-center gap-1.5 font-bold cursor-pointer"

@@ -1,4 +1,3 @@
-export type AccessMode = 'guest' | 'member';
 export type PaymentMethod = 'qris' | 'va' | 'cc';
 
 export interface Courier {

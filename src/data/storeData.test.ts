@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  PAIRING_PRODUCTS,
+  PAIRING_PRODUCT_IDS,
   PRODUCTS,
   INITIAL_ORDERS,
   formatEtaRange,
@@ -53,11 +53,9 @@ describe('konsistensi data katalog', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('harga pairing produk katalog sama dengan harga katalog', () => {
-    for (const item of PAIRING_PRODUCTS) {
-      const product = PRODUCTS.find((p) => p.id === item.id);
-      if (product) expect(item.price).toBe(product.price);
-    }
+  it('semua produk pairing ada di katalog', () => {
+    const ids = PRODUCTS.map((p) => p.id);
+    for (const id of PAIRING_PRODUCT_IDS) expect(ids).toContain(id);
   });
 
   it('total seed order = subtotal + ongkir - diskon + biaya layanan', () => {

@@ -22,3 +22,9 @@ export interface InfoContent {
   subtitle: string;
   content: string[];
 }
+
+export interface AccountInfo {
+  name: string;
+  email: string;
+  isAdmin: boolean;
+}

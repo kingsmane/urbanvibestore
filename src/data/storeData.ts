@@ -54,6 +54,8 @@ export interface CartItem {
 }
 
 export interface OrderItemSnapshot {
+  /** Slug produk (id katalog) bila produk masih ada; dipakai untuk beli lagi. */
+  productId?: string;
   name: string;
   color: string;
   size: string;
@@ -66,13 +68,25 @@ export interface OrderItemSnapshot {
   reviewText?: string;
 }
 
+export type OrderStatus =
+  | 'PENDING_PAYMENT'
+  | 'PAID'
+  | 'PROCESSING'
+  | 'IN_TRANSIT'
+  | 'COMPLETED'
+  | 'CANCELLED'
+  | 'EXPIRED'
+  | 'REFUNDED';
+
 export interface Order {
   id: string;
   orderNumber: string;
   dateStr: string;
-  status: 'PENDING_PAYMENT' | 'IN_TRANSIT' | 'COMPLETED';
+  status: OrderStatus;
   paymentMethod: string;
   vaNumber?: string;
+  /** ISO time batas pembayaran (dari server). */
+  paymentExpiresAt?: string;
   subtotal: number;
   shippingFee: number;
   discount: number;
@@ -98,6 +112,14 @@ export interface SavedAddress {
   phone: string;
   fullAddress: string;
   courierNote: string;
+  /** Data terstruktur (diisi dari database). */
+  recipientName?: string;
+  /** Alamat jalan saja (tanpa kota/kode pos). */
+  streetAddress?: string;
+  province?: string;
+  city?: string;
+  district?: string;
+  postalCode?: string;
 }
 
 export interface FitProfile {
@@ -439,63 +461,78 @@ export const PRODUCTS: Product[] = [
       ],
     },
   },
-];
-
-const catalogPrice = (id: string): number => PRODUCTS.find((p) => p.id === id)?.price ?? 0;
-
-export interface PairingProduct {
-  id: string;
-  badge: string;
-  badgeVariant: 'new' | 'promo' | 'none';
-  categoryLabel: string;
-  name: string;
-  price: number;
-  originalPrice?: number;
-  image: string;
-}
-
-export const PAIRING_PRODUCTS: PairingProduct[] = [
-  {
-    id: 'prod-3',
-    badge: 'Pairing 01',
-    badgeVariant: 'new',
-    categoryLabel: 'Bawahan',
-    name: 'Pleated Wide-Leg Trousers',
-    price: catalogPrice('prod-3'),
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuDV9fKkWm1cOMCD4NNYuqsCMJs3yIW-DFnjknp2ok4YWRKP9NrM1XOyx7PcFyLsL2QHAvVzKU-z4pF8epI0OWMr7SD6nVtbOEf5soAMcyDKcXIeXlg-X9qamfgsb5-PTyYSLIqamwMopiGcv1PhZQ03mNEwYBgno8Kd5drvmTOFsveAoflRStJrs6diTQrYGyzjVKXwnWSa3dP-Qar9jiMGkMZmrhxqEGrUTu1IfojM',
-  },
-  {
-    id: 'prod-7',
-    badge: '',
-    badgeVariant: 'none',
-    categoryLabel: 'Aksesoris',
-    name: 'Modular Crossbody Pack',
-    price: catalogPrice('prod-7'),
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuDhHjuJxONw08c30wMaQFAucDirLqMUmERZkWjq_mZZb1djB_sVQ388AdHJ7JS8JXkswS8fS781v1i31mByNp1bXMbJs-B_v-DFum4CYFjt_u-K79zDaf5LjwUz_AQgSXsPCaIoyWYczcYW0GyzGjPTMfNvpKY24q7BTdNDca-deCRuL6HvFYTcZPtLuaK2-wwg0BCc2lxJuEYnLSYWi_Hs41J1kNTKFD_JUuPMx1sZ',
-  },
   {
     id: 'prod-derbies',
-    badge: '',
-    badgeVariant: 'none',
-    categoryLabel: 'Alas Kaki',
-    name: 'Vibram Sole Leather Derbies',
+    sku: 'URBN-SHO-009',
+    name: 'Vibram Sole Leather Derbies - Archive Black',
+    shortName: 'Vibram Sole Leather Derbies',
+    category: 'Aksesoris',
+    subCategory: 'Aksesoris // Alas Kaki',
+    tagLabel: 'Vibram Sole',
     price: 899000,
+    badges: [{ text: 'Full Grain', variant: 'dark' }],
     image:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuA5-JsITeGQLaGdNoZX_mmapNqpJu4Rp2qMa1ye_ksqvn5XC_kpxVqzIs4MmYgfBE-6tEEAQZXt-CBUR9VXb-vLcHjBtRksXRmk2vCU89FKpiUfcaA94LEwJAc525kI3OCvPel7Vfff2blQ6YWsKR1MTLu1xJtNbPdwy2b-YIHC_O9j2Oowqy3TKaF6fcRutn7CHmYSv3cHJrtvZrEJPHff92-f-40nH-xiQ618q7CS',
+    gallery: [
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuA5-JsITeGQLaGdNoZX_mmapNqpJu4Rp2qMa1ye_ksqvn5XC_kpxVqzIs4MmYgfBE-6tEEAQZXt-CBUR9VXb-vLcHjBtRksXRmk2vCU89FKpiUfcaA94LEwJAc525kI3OCvPel7Vfff2blQ6YWsKR1MTLu1xJtNbPdwy2b-YIHC_O9j2Oowqy3TKaF6fcRutn7CHmYSv3cHJrtvZrEJPHff92-f-40nH-xiQ618q7CS',
+    ],
+    colors: [{ name: 'Archive Black', hex: '#1a1a1a' }],
+    sizes: [
+      { code: '40', stock: 3, statusLabel: 'Sisa 3' },
+      { code: '41', stock: 6, statusLabel: 'Tersedia' },
+      { code: '42', stock: 8, statusLabel: 'Tersedia' },
+      { code: '43', stock: 5, statusLabel: 'Tersedia' },
+      { code: '44', stock: 2, statusLabel: 'Sisa 2' },
+    ],
+    defaultSize: '42',
+    specs: {
+      density: 'Full-Grain Leather',
+      silhouette: 'Classic Derby',
+      detailLabel: 'Sol',
+      detailValue: 'Vibram Lug Sole',
+      fitNote: 'Ukuran EU; pilih satu ukuran di atas bila berada di antara dua ukuran',
+      materialTag: 'Full-Grain Leather',
+      carePoints: [
+        '• Kulit full-grain dengan sol Vibram tahan selip untuk pemakaian harian.',
+        '• Bersihkan dengan kain lembap dan semir netral; hindari rendaman air.',
+      ],
+    },
   },
   {
     id: 'prod-socks',
-    badge: '',
-    badgeVariant: 'none',
-    categoryLabel: 'Aksesoris',
-    name: 'Heavy Ribbed Socks (2-Pack)',
+    sku: 'URBN-SOK-010',
+    name: 'Heavy Ribbed Socks (2-Pack) - Archive Black',
+    shortName: 'Heavy Ribbed Socks (2-Pack)',
+    category: 'Aksesoris',
+    subCategory: 'Aksesoris // Kaus Kaki',
+    tagLabel: 'Heavy Rib',
     price: 99000,
+    badges: [],
     image:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuAXOdyhHPShzVT_wPTe9U5kiJXEcQz2CrrcSCzFgyh4CmQYZx-W5uyzfZ5IEhu16Mxdk8kI_ZEshhEKxWf7iBPVgo_bo-c4UrXWWvJej5rriV7MoX8sDWUJxLtTnWgK51uDGKiXedzHoHhjkLzeJso5fXsWvRJt_xxGONkPEGOmPMx5bfPB741pNCptolbG4bj0x1_F4YHCz4TsCS2ZCdQ0rNW6iXYiqUZRh9apfXh9',
+    gallery: [
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuAXOdyhHPShzVT_wPTe9U5kiJXEcQz2CrrcSCzFgyh4CmQYZx-W5uyzfZ5IEhu16Mxdk8kI_ZEshhEKxWf7iBPVgo_bo-c4UrXWWvJej5rriV7MoX8sDWUJxLtTnWgK51uDGKiXedzHoHhjkLzeJso5fXsWvRJt_xxGONkPEGOmPMx5bfPB741pNCptolbG4bj0x1_F4YHCz4TsCS2ZCdQ0rNW6iXYiqUZRh9apfXh9',
+    ],
+    colors: [{ name: 'Archive Black', hex: '#1a1a1a' }],
+    sizes: [{ code: 'OS', stock: 40, statusLabel: 'Tersedia' }],
+    defaultSize: 'OS',
+    specs: {
+      density: 'Heavy Rib Knit',
+      silhouette: 'Crew Length',
+      detailLabel: 'Isi',
+      detailValue: '2 pasang per kemasan',
+      fitNote: 'Satu ukuran (OS), cocok untuk EU 39 - 45',
+      materialTag: 'Cotton Blend',
+      carePoints: [
+        '• Rajutan rib tebal yang menahan bentuk dan nyaman dipakai seharian.',
+        '• Cuci mesin air dingin; jemur di tempat teduh.',
+      ],
+    },
   },
 ];
+
+/** Produk yang disarankan di bagian "Lengkapi Gaya Anda" (diambil dari katalog). */
+export const PAIRING_PRODUCT_IDS = ['prod-3', 'prod-7', 'prod-derbies', 'prod-socks'];
 
 export const INITIAL_CART: CartItem[] = [];
 

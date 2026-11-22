@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Order, formatRupiah } from '../data/storeData';
+import { Order } from '../data/storeData';
+import { ORDER_STATUS_LABEL, isAwaitingPayment } from '../lib/orderStatus';
 import { StatusRibbon } from './confirmation/StatusRibbon';
 import { ConfirmationHero } from './confirmation/ConfirmationHero';
 import { PaymentCard } from './confirmation/PaymentCard';
@@ -12,28 +13,37 @@ interface OrderConfirmationViewProps {
   order: Order;
   onNavigateCatalog: () => void;
   onNavigateAccount: () => void;
-  onMarkOrderPaid?: (orderId: string) => void;
+  /** Muat ulang status pesanan dari server. */
+  onRefresh: () => Promise<void>;
+  onCancelOrder: (orderId: string) => Promise<void>;
 }
+
+const secondsUntil = (iso: string | undefined, now: number): number =>
+  iso ? Math.max(0, Math.floor((new Date(iso).getTime() - now) / 1000)) : 0;
 
 export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
   order,
   onNavigateCatalog,
   onNavigateAccount,
-  onMarkOrderPaid,
+  onRefresh,
+  onCancelOrder,
 }) => {
-  const [secondsLeft, setSecondsLeft] = useState(14 * 60 + 48);
+  const [now, setNow] = useState(() => Date.now());
   const [copiedRef, setCopiedRef] = useState(false);
   const [copiedVa, setCopiedVa] = useState(false);
   const [activeGuide, setActiveGuide] = useState<'mobile' | 'klikbca' | 'atm'>('mobile');
   const [statusNotice, setStatusNotice] = useState<string | null>(null);
-  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const [isChecking, setIsChecking] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
 
+  // Hitung mundur dari batas waktu bayar yang ditetapkan server.
+  const awaiting = isAwaitingPayment(order.status);
   useEffect(() => {
-    const timer = setInterval(() => {
-      setSecondsLeft((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
+    if (!awaiting) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [awaiting]);
+  const secondsLeft = awaiting ? secondsUntil(order.paymentExpiresAt, now) : 0;
 
   const formatTimer = (sec: number) => {
     const m = Math.floor(sec / 60);
@@ -53,29 +63,28 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
     setTimeout(() => setCopiedVa(false), 2200);
   };
 
-  const handleCheckStatus = () => {
-    setStatusNotice('• Menghubungkan ke gateway BCA... Memeriksa mutasi otomatis.');
-    setTimeout(() => {
-      if (uploadedFileName && onMarkOrderPaid) {
-        onMarkOrderPaid(order.id);
-        setStatusNotice(
-          '• Pembayaran Rp ' +
-            order.total.toLocaleString('id-ID') +
-            ' TERVERIFIKASI! Pesanan diteruskan ke Gudang Cikarang.'
-        );
-      } else {
-        setStatusNotice(
-          '• Menunggu input transfer Anda pada rekening VA di atas (atau unggah bukti transfer untuk simulasi verifikasi instan).'
-        );
-      }
-    }, 1500);
+  // Status pembayaran hanya berasal dari server (PRD 6.6): tombol ini memuat ulang,
+  // tidak pernah menandai lunas dari sisi browser.
+  const handleCheckStatus = async () => {
+    setIsChecking(true);
+    try {
+      await onRefresh();
+      setStatusNotice('Status diperbarui dari server. Pembayaran diverifikasi otomatis setelah kami menerimanya.');
+    } catch {
+      setStatusNotice('Tidak dapat memeriksa status saat ini. Coba lagi sebentar lagi.');
+    } finally {
+      setIsChecking(false);
+    }
   };
 
-  const handleUploadProof = () => {
-    setUploadedFileName('struk_bca_mtransfer_8492.jpg');
-    setStatusNotice(
-      '• Bukti transfer "struk_bca_mtransfer_8492.jpg" berhasil diunggah. Klik "Cek Status Pembayaran" untuk verifikasi instan.'
-    );
+  const handleCancel = async () => {
+    if (isCancelling) return;
+    setIsCancelling(true);
+    try {
+      await onCancelOrder(order.id);
+    } finally {
+      setIsCancelling(false);
+    }
   };
 
   return (
@@ -85,17 +94,34 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
 
       <div className="max-w-[1440px] mx-auto px-margin md:px-margin-desktop py-space-lg md:py-space-xl w-full">
         {/* Hero Header / Celebration Section */}
-        <ConfirmationHero order={order} secondsLeft={secondsLeft} copiedRef={copiedRef} formatTimer={formatTimer} handleCopyRef={handleCopyRef} />
+        <ConfirmationHero
+          order={order}
+          secondsLeft={secondsLeft}
+          copiedRef={copiedRef}
+          formatTimer={formatTimer}
+          handleCopyRef={handleCopyRef}
+        />
 
         {/* Main Editorial 2-Column Section */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-gutter-desktop">
           {/* LEFT COLUMN: Payment Action & Instructions (7 cols) */}
           <section className="lg:col-span-7 flex flex-col gap-space-lg">
             {/* Payment Callout Card */}
-            <PaymentCard order={order} copiedVa={copiedVa} statusNotice={statusNotice} uploadedFileName={uploadedFileName} handleCopyVa={handleCopyVa} handleCheckStatus={handleCheckStatus} handleUploadProof={handleUploadProof} />
+            <PaymentCard
+              order={order}
+              copiedVa={copiedVa}
+              statusNotice={statusNotice}
+              isChecking={isChecking}
+              isCancelling={isCancelling}
+              handleCopyVa={handleCopyVa}
+              handleCheckStatus={handleCheckStatus}
+              handleCancel={handleCancel}
+            />
 
             {/* Tabbed Transfer Guides */}
-            <TransferGuides order={order} activeGuide={activeGuide} setActiveGuide={setActiveGuide} />
+            {awaiting && order.vaNumber && (
+              <TransferGuides order={order} activeGuide={activeGuide} setActiveGuide={setActiveGuide} />
+            )}
 
             {/* Next Steps & Assistance Card */}
             <NextStepsCard order={order} onNavigateCatalog={onNavigateCatalog} onNavigateAccount={onNavigateAccount} />
@@ -111,6 +137,9 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
           </section>
         </div>
       </div>
+      <span className="sr-only" aria-live="polite">
+        {ORDER_STATUS_LABEL[order.status]}
+      </span>
     </div>
   );
 };

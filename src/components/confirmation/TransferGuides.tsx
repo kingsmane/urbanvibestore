@@ -83,7 +83,7 @@ export const TransferGuides: React.FC<TransferGuidesProps> = ({
             </span>
             <p>
               Periksa detail transaksi: Pastikan nama tertera{' '}
-              <span className="text-primary font-semibold">URBANSTORE / NAYA R</span> dan
+              <span className="text-primary font-semibold">URBANSTORE</span> dan
               jumlah transfer sesuai (
               <span className="font-semibold text-primary">
                 {formatRupiah(order.total)}

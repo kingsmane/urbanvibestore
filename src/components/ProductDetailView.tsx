@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Product, PAIRING_PRODUCTS, formatRupiah } from '../data/storeData';
+import { Product, formatRupiah } from '../data/storeData';
 import { BreadcrumbBar } from './product/BreadcrumbBar';
 import { ImageGallery } from './product/ImageGallery';
 import { PurchasePanel } from './product/PurchasePanel';
@@ -15,17 +15,16 @@ interface ProductDetailViewProps {
   onOpenFullSizeGuide: () => void;
   onAddToCart: (product: Product, size: string, color: string) => void;
   onBuyNow: (product: Product, size: string, color: string) => void;
-  onQuickAddCustom: (name: string, price: number, image: string, categoryLabel: string) => void;
 }
 
 export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
   product,
+  allProducts,
   onNavigateHome,
   onOpenProduct,
   onOpenFullSizeGuide,
   onAddToCart,
   onBuyNow,
-  onQuickAddCustom,
 }) => {
   const [activeImageIdx, setActiveImageIdx] = useState(0);
   const [selectedColor, setSelectedColor] = useState(product.colors[0]?.name || 'Charcoal Black');
@@ -95,7 +94,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
       )}
 
       {/* Recommended Pairing Section: Lengkapi Gaya Anda */}
-      <PairingSection onNavigateHome={onNavigateHome} onOpenProduct={onOpenProduct} onQuickAddCustom={onQuickAddCustom} />
+      <PairingSection products={allProducts} onNavigateHome={onNavigateHome} onOpenProduct={onOpenProduct} onAddToCart={onAddToCart} />
     </div>
   );
 };

@@ -5,7 +5,7 @@ import { BottomNav } from './layout/BottomNav';
 import { InfoModal } from './layout/InfoModal';
 import { SiteFooter } from './layout/SiteFooter';
 
-import type { InfoContent, NavigateFn, PageRoute } from './layout/types';
+import type { AccountInfo, InfoContent, NavigateFn, PageRoute } from './layout/types';
 import { INFO_CONTENT } from './layout/infoContent';
 
 export type { PageRoute };
@@ -19,6 +19,9 @@ interface LayoutProps {
   onNavigate: NavigateFn;
   toastMessage: string | null;
   toastSubtext?: string;
+  account?: AccountInfo;
+  onSignOut?: () => void;
+  onSubscribeNewsletter?: (email: string) => Promise<void>;
   children: React.ReactNode;
 }
 
@@ -31,6 +34,9 @@ export const Layout: React.FC<LayoutProps> = ({
   onNavigate,
   toastMessage,
   toastSubtext,
+  account,
+  onSignOut,
+  onSubscribeNewsletter,
   children,
 }) => {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
@@ -42,9 +48,15 @@ export const Layout: React.FC<LayoutProps> = ({
     onNavigate('home', { category: cat, scrollTo: scrollTarget });
   };
 
-  const handleNewsletterSubmit = (e: React.FormEvent) => {
+  const handleNewsletterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newsletterEmail.trim()) return;
+    const email = newsletterEmail.trim();
+    if (!email) return;
+    try {
+      await onSubscribeNewsletter?.(email);
+    } catch {
+      return; // gagal menyimpan: biarkan input agar bisa dicoba lagi
+    }
     setNewsletterSubscribed(true);
     setNewsletterEmail('');
     setTimeout(() => setNewsletterSubscribed(false), 4000);
@@ -59,7 +71,7 @@ export const Layout: React.FC<LayoutProps> = ({
   return (
     <div className="min-h-screen flex flex-col bg-surface font-body-md text-on-surface antialiased">
       {/* HEADER */}
-      <SiteHeader currentPage={currentPage} activeCategory={activeCategory} cartCount={cartCount} searchQuery={searchQuery} onSearchChange={onSearchChange} onNavigate={onNavigate} mobileSearchOpen={mobileSearchOpen} setMobileSearchOpen={setMobileSearchOpen} handleCategoryNav={handleCategoryNav} />
+      <SiteHeader currentPage={currentPage} activeCategory={activeCategory} cartCount={cartCount} searchQuery={searchQuery} onSearchChange={onSearchChange} onNavigate={onNavigate} mobileSearchOpen={mobileSearchOpen} setMobileSearchOpen={setMobileSearchOpen} handleCategoryNav={handleCategoryNav} account={account} onSignOut={onSignOut} />
 
       {/* MAIN CONTENT */}
       <main className="w-full pt-28 bg-surface min-h-screen flex-1">{children}</main>

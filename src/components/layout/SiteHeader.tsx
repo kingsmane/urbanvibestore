@@ -1,5 +1,6 @@
 import React from 'react';
-import { NavigateFn, PageRoute } from './types';
+import { Link } from 'react-router-dom';
+import { AccountInfo, NavigateFn, PageRoute } from './types';
 
 interface SiteHeaderProps {
   currentPage: PageRoute;
@@ -11,6 +12,8 @@ interface SiteHeaderProps {
   mobileSearchOpen: boolean;
   setMobileSearchOpen: React.Dispatch<React.SetStateAction<boolean>>;
   handleCategoryNav: (cat: string, scrollTarget?: string) => void;
+  account?: AccountInfo;
+  onSignOut?: () => void;
 }
 
 export const SiteHeader: React.FC<SiteHeaderProps> = ({
@@ -23,6 +26,8 @@ export const SiteHeader: React.FC<SiteHeaderProps> = ({
   mobileSearchOpen,
   setMobileSearchOpen,
   handleCategoryNav,
+  account,
+  onSignOut,
 }) => {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-canvas-base">
@@ -189,16 +194,35 @@ export const SiteHeader: React.FC<SiteHeaderProps> = ({
                 onClick={() => onNavigate('account')}
                 className="ml-space-xs shrink-0 flex items-center gap-space-xs group cursor-pointer"
               >
-                <img
-                  alt="Profile"
-                  referrerPolicy="no-referrer"
-                  className="w-8 h-8 rounded-full object-cover border border-border-hairline group-hover:border-border-strong transition-colors"
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuDzbtdls_WX8w8ws7YT8s8rLQIDdOEVMpyRcjppOb_LqJpqDPdDIpeNm4xsydA-mKXsddhkZdAGp-SRfkwgaZh6q_D09fd0FH8uU0MWv84RXp07jCLzYvuELnzTiC4TRPCR5zWxQWcZEuHkC2JPOZGWMSMpI1R_QyIuGCOElDh_qr7TdDBw7VTTLW6n3bb2AKjnm1mZWPcbE1mgp4pcoFCcqQk_U8tIzZoo7YuTogre"
-                />
-                <span className="font-label-caps text-label-caps uppercase text-on-surface-variant group-hover:text-primary hidden xl:inline transition-colors">
-                  Akun Saya
+                <span
+                  aria-hidden="true"
+                  className="w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center font-label-caps text-label-caps border border-border-hairline group-hover:bg-badge-promo group-hover:text-text-on-accent transition-colors"
+                >
+                  {(account?.name || account?.email || '?').trim().charAt(0).toUpperCase()}
+                </span>
+                <span className="font-label-caps text-label-caps uppercase text-on-surface-variant group-hover:text-primary hidden xl:inline transition-colors max-w-[10rem] truncate">
+                  {account?.name || 'Akun Saya'}
                 </span>
               </button>
+              {account?.isAdmin && (
+                <Link
+                  to="/admin"
+                  className="shrink-0 px-space-sm py-1 bg-badge-promo text-text-on-accent font-label-caps text-label-caps uppercase font-bold hover:bg-primary hover:text-on-primary transition-colors"
+                >
+                  Admin
+                </Link>
+              )}
+              {onSignOut && (
+                <button
+                  type="button"
+                  aria-label="Keluar"
+                  onClick={onSignOut}
+                  className="shrink-0 flex items-center gap-1 font-label-caps text-label-caps uppercase text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[20px]" aria-hidden="true">logout</span>
+                  <span className="hidden xl:inline">Keluar</span>
+                </button>
+              )}
             </div>
           </div>
         </div>

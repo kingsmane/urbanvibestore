@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
   Order,
+  OrderItemSnapshot,
+  Product,
   SavedAddress,
   FitProfile,
   formatRupiah,
 } from '../data/storeData';
+import type { AddressInput, Profile } from '../services/types';
+import { describeError } from '../services/errors';
 import { ProfileHeader } from './account/ProfileHeader';
 import { OrdersTab } from './account/OrdersTab';
 import { AddressesTab } from './account/AddressesTab';
@@ -19,12 +23,16 @@ interface AccountViewProps {
   orders: Order[];
   addresses: SavedAddress[];
   fitProfile: FitProfile;
+  products: Product[];
+  profile: Profile | null;
   initialTab?: 'orders' | 'addresses' | 'fitprofile' | 'settings';
-  onUpdateAddresses: (addrs: SavedAddress[]) => void;
+  onSaveAddress: (input: AddressInput) => Promise<void>;
+  onSetPrimaryAddress: (id: string) => Promise<void>;
   onNavigateHome: () => void;
   onNavigateSizeGuide: () => void;
   onPayOrder: (order: Order) => void;
-  onReorderItem: (name: string, price: number, image: string) => void;
+  onCancelOrder: (orderId: string) => Promise<void>;
+  onReorderItem: (item: OrderItemSnapshot) => void;
   onOpenProduct: (productId: string) => void;
   onShowToast: (msg: string, sub?: string) => void;
   onTabChange?: (tab: 'orders' | 'addresses' | 'fitprofile' | 'settings') => void;
@@ -34,11 +42,15 @@ export const AccountView: React.FC<AccountViewProps> = ({
   orders,
   addresses,
   fitProfile,
+  products,
+  profile,
   initialTab = 'orders',
-  onUpdateAddresses,
+  onSaveAddress,
+  onSetPrimaryAddress,
   onNavigateHome,
   onNavigateSizeGuide,
   onPayOrder,
+  onCancelOrder,
   onReorderItem,
   onOpenProduct,
   onShowToast,
@@ -47,20 +59,24 @@ export const AccountView: React.FC<AccountViewProps> = ({
   const [activeTab, setActiveTab] = useState<'orders' | 'addresses' | 'fitprofile' | 'settings'>(
     initialTab
   );
-  const [countdownSec, setCountdownSec] = useState(13 * 60 + 58);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const [copiedVa, setCopiedVa] = useState(false);
   const [checkingOrderId, setCheckingOrderId] = useState<string | null>(null);
   const [checkResultText, setCheckResultText] = useState<Record<string, string>>({});
-  const [trackingModalOpen, setTrackingModalOpen] = useState(false);
+  const [trackingOrder, setTrackingOrder] = useState<Order | null>(null);
   const [invoiceModalOrder, setInvoiceModalOrder] = useState<Order | null>(null);
 
   // Address Form Modal
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState<SavedAddress | null>(null);
   const [addrLabel, setAddrLabel] = useState('Rumah');
-  const [addrRecipient, setAddrRecipient] = useState('');
+  const [addrName, setAddrName] = useState('');
+  const [addrPhone, setAddrPhone] = useState('');
   const [addrAddress, setAddrAddress] = useState('');
+  const [addrPostal, setAddrPostal] = useState('');
   const [addrNote, setAddrNote] = useState('');
+  const [addrError, setAddrError] = useState<string | null>(null);
+  const [addrSaving, setAddrSaving] = useState(false);
 
   // Notification Settings
   const [notifWhatsapp, setNotifWhatsapp] = useState(true);
@@ -76,12 +92,12 @@ export const AccountView: React.FC<AccountViewProps> = ({
     setActiveTab(initialTab);
   }, [initialTab]);
 
+  const hasPending = orders.some((o) => o.status === 'PENDING_PAYMENT');
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCountdownSec((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
+    if (!hasPending) return;
+    const interval = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [hasPending]);
 
   const formatTimer = (sec: number) => {
     const m = Math.floor(sec / 60);
@@ -95,79 +111,87 @@ export const AccountView: React.FC<AccountViewProps> = ({
     setTimeout(() => setCopiedVa(false), 2000);
   };
 
-  const handleSimulateCheck = (orderId: string) => {
+  // Status pembayaran hanya berubah di server (admin/gateway); tombol ini hanya memberi umpan balik.
+  const handleCheckStatus = (orderId: string) => {
     setCheckingOrderId(orderId);
     setTimeout(() => {
       setCheckingOrderId(null);
-      setCheckResultText((prev) => ({
-        ...prev,
-        [orderId]: 'Menunggu Transfer',
-      }));
-      onShowToast(
-        'Mutasi Virtual Account belum terdeteksi',
-        'Silakan selesaikan pembayaran via m-BCA atau ATM'
-      );
-    }, 1000);
+      setCheckResultText((prev) => ({ ...prev, [orderId]: 'Menunggu Transfer' }));
+      onShowToast('Pembayaran belum terverifikasi', 'Status diperbarui otomatis setelah pembayaran kami terima');
+    }, 600);
   };
 
   const openAddAddressModal = () => {
     setEditingAddress(null);
-    setAddrLabel('Apartemen');
-    setAddrRecipient('Naya Rahmadani (+62 812-3456-4491)');
+    setAddrLabel('Rumah');
+    setAddrName(profile?.fullName ?? '');
+    setAddrPhone(profile?.phone ?? '');
     setAddrAddress('');
+    setAddrPostal('');
     setAddrNote('');
+    setAddrError(null);
     setAddressModalOpen(true);
   };
 
   const openEditAddressModal = (addr: SavedAddress) => {
     setEditingAddress(addr);
     setAddrLabel(addr.label);
-    setAddrRecipient(addr.recipient);
-    setAddrAddress(addr.fullAddress);
-    setAddrNote(addr.courierNote);
+    setAddrName(addr.recipientName ?? '');
+    setAddrPhone(addr.phone);
+    setAddrAddress(addr.streetAddress ?? addr.fullAddress);
+    setAddrPostal(addr.postalCode ?? '');
+    setAddrNote(addr.courierNote.replace(/^Catatan kurir:\s*/i, ''));
+    setAddrError(null);
     setAddressModalOpen(true);
   };
 
-  const handleSaveAddress = (e: React.FormEvent) => {
+  const handleSaveAddress = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!addrRecipient.trim() || !addrAddress.trim()) return;
-    if (editingAddress) {
-      const updated = addresses.map((a) =>
-        a.id === editingAddress.id
-          ? {
-              ...a,
-              label: addrLabel,
-              recipient: addrRecipient,
-              fullAddress: addrAddress,
-              courierNote: addrNote || 'Catatan kurir: Hubungi penerima saat tiba.',
-            }
-          : a
-      );
-      onUpdateAddresses(updated);
-      onShowToast('Alamat pengiriman berhasil diperbarui');
-    } else {
-      const newAddr: SavedAddress = {
-        id: 'addr-' + Date.now(),
-        label: addrLabel || 'Lainnya',
-        isPrimary: addresses.length === 0,
-        recipient: addrRecipient,
-        phone: '+62 812-3456-4491',
-        fullAddress: addrAddress,
-        courierNote: addrNote || 'Catatan kurir: Titipkan di resepsionis/pos.',
-      };
-      onUpdateAddresses([...addresses, newAddr]);
-      onShowToast('Alamat baru berhasil ditambahkan');
+    if (addrSaving) return;
+    if (!addrName.trim() || !addrPhone.trim()) {
+      setAddrError('Nama penerima dan nomor telepon wajib diisi.');
+      return;
     }
-    setAddressModalOpen(false);
+    if (addrAddress.trim().length < 10) {
+      setAddrError('Alamat terlalu singkat; lengkapi dengan nomor rumah dan RT/RW.');
+      return;
+    }
+    if (!/^\d{5}$/.test(addrPostal.trim())) {
+      setAddrError('Kode pos harus 5 digit angka.');
+      return;
+    }
+    setAddrError(null);
+    setAddrSaving(true);
+    try {
+      await onSaveAddress({
+        id: editingAddress?.id,
+        label: addrLabel,
+        recipientName: addrName,
+        phone: addrPhone,
+        province: editingAddress?.province,
+        city: editingAddress?.city,
+        district: editingAddress?.district,
+        postalCode: addrPostal,
+        fullAddress: addrAddress,
+        courierNote: addrNote,
+        isPrimary: !editingAddress && addresses.length === 0,
+      });
+      onShowToast(editingAddress ? 'Alamat pengiriman berhasil diperbarui' : 'Alamat baru berhasil ditambahkan');
+      setAddressModalOpen(false);
+    } catch (err) {
+      setAddrError(describeError(err));
+    } finally {
+      setAddrSaving(false);
+    }
   };
 
-  const handleSetPrimaryAddress = (id: string) => {
-    const updated = addresses.map((a) => ({
-      ...a,
-      isPrimary: a.id === id,
-    }));
-    onUpdateAddresses(updated);
-    onShowToast('Alamat utama berhasil diubah');
+  const handleSetPrimaryAddress = async (id: string) => {
+    try {
+      await onSetPrimaryAddress(id);
+      onShowToast('Alamat utama berhasil diubah');
+    } catch (err) {
+      onShowToast('Alamat utama gagal diubah', describeError(err));
+    }
   };
 
   const pendingCount = orders.filter((o) => o.status === 'PENDING_PAYMENT').length;
@@ -175,7 +199,7 @@ export const AccountView: React.FC<AccountViewProps> = ({
   return (
     <div className="flex flex-col w-full">
       {/* Top Profile Dossier & Quick Metrics (Swiss Identity System) */}
-      <ProfileHeader orders={orders} addresses={addresses} onNavigateHome={onNavigateHome} activeTab={activeTab} changeTab={changeTab} pendingCount={pendingCount} />
+      <ProfileHeader orders={orders} addresses={addresses} profile={profile} onNavigateHome={onNavigateHome} activeTab={activeTab} changeTab={changeTab} pendingCount={pendingCount} />
 
       {/* Content Work Area (Main Panel + Context Sidebar) */}
       <section className="w-full">
@@ -185,7 +209,7 @@ export const AccountView: React.FC<AccountViewProps> = ({
             <div className="lg:col-span-8 space-y-space-lg">
               {/* TAB 1: RIWAYAT PESANAN */}
               {activeTab === 'orders' && (
-                <OrdersTab orders={orders} onPayOrder={onPayOrder} onReorderItem={onReorderItem} countdownSec={countdownSec} copiedVa={copiedVa} checkingOrderId={checkingOrderId} checkResultText={checkResultText} setTrackingModalOpen={setTrackingModalOpen} setInvoiceModalOrder={setInvoiceModalOrder} formatTimer={formatTimer} handleCopyVa={handleCopyVa} handleSimulateCheck={handleSimulateCheck} />
+                <OrdersTab orders={orders} onPayOrder={onPayOrder} onReorderItem={onReorderItem} onCancelOrder={onCancelOrder} nowMs={nowMs} copiedVa={copiedVa} checkingOrderId={checkingOrderId} checkResultText={checkResultText} setTrackingOrder={setTrackingOrder} setInvoiceModalOrder={setInvoiceModalOrder} formatTimer={formatTimer} handleCopyVa={handleCopyVa} handleCheckStatus={handleCheckStatus} />
               )}
 
               {/* TAB 2: BUKU ALAMAT */}
@@ -205,14 +229,14 @@ export const AccountView: React.FC<AccountViewProps> = ({
             </div>
 
             {/* RIGHT 4-COLUMN CONTEXTUAL SIDEBAR */}
-            <AccountSidebar fitProfile={fitProfile} onNavigateHome={onNavigateHome} onNavigateSizeGuide={onNavigateSizeGuide} onReorderItem={onReorderItem} onOpenProduct={onOpenProduct} onShowToast={onShowToast} />
+            <AccountSidebar fitProfile={fitProfile} onNavigateHome={onNavigateHome} onNavigateSizeGuide={onNavigateSizeGuide} products={products} onOpenProduct={onOpenProduct} onShowToast={onShowToast} />
           </div>
         </div>
       </section>
 
       {/* Interactive Tracking Modal */}
-      {trackingModalOpen && (
-        <TrackingModal setTrackingModalOpen={setTrackingModalOpen} />
+      {trackingOrder && (
+        <TrackingModal order={trackingOrder} onClose={() => setTrackingOrder(null)} />
       )}
 
       {/* Invoice Modal */}
@@ -222,7 +246,7 @@ export const AccountView: React.FC<AccountViewProps> = ({
 
       {/* Address Add/Edit Modal */}
       {addressModalOpen && (
-        <AddressModal setAddressModalOpen={setAddressModalOpen} editingAddress={editingAddress} addrLabel={addrLabel} setAddrLabel={setAddrLabel} addrRecipient={addrRecipient} setAddrRecipient={setAddrRecipient} addrAddress={addrAddress} setAddrAddress={setAddrAddress} addrNote={addrNote} setAddrNote={setAddrNote} handleSaveAddress={handleSaveAddress} />
+        <AddressModal setAddressModalOpen={setAddressModalOpen} editingAddress={editingAddress} addrLabel={addrLabel} setAddrLabel={setAddrLabel} addrName={addrName} setAddrName={setAddrName} addrPhone={addrPhone} setAddrPhone={setAddrPhone} addrAddress={addrAddress} setAddrAddress={setAddrAddress} addrPostal={addrPostal} setAddrPostal={setAddrPostal} addrNote={addrNote} setAddrNote={setAddrNote} addrError={addrError} addrSaving={addrSaving} handleSaveAddress={handleSaveAddress} />
       )}
     </div>
   );

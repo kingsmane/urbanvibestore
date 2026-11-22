@@ -1,5 +1,6 @@
 import React from 'react';
 import { Order, formatRupiah } from '../../data/storeData';
+import { ORDER_STATUS_LABEL } from '../../lib/orderStatus';
 
 interface ReceiptCardProps {
   order: Order;
@@ -13,7 +14,7 @@ export const ReceiptCard: React.FC<ReceiptCardProps> = ({
       <div className="flex items-center justify-between pb-space-sm">
         <div>
           <span className="font-headline-sm text-headline-sm uppercase tracking-tight text-primary font-bold">
-            URBANSTORE / REC-8492
+            URBANSTORE / {order.orderNumber.replace('#', '')}
           </span>
           <span className="font-label-sm text-label-sm uppercase text-outline block">
             Zurich • Tokyo • Jakarta Edition
@@ -21,7 +22,7 @@ export const ReceiptCard: React.FC<ReceiptCardProps> = ({
         </div>
         <div className="text-right">
           <span className="bg-surface-muted text-on-surface px-2 py-1 font-label-caps text-[11px] uppercase tracking-wider font-semibold">
-            Status: {order.status === 'PENDING_PAYMENT' ? 'Pending' : 'Paid'}
+            Status: {ORDER_STATUS_LABEL[order.status]}
           </span>
         </div>
       </div>
