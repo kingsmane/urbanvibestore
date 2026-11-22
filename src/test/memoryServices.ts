@@ -21,6 +21,7 @@ import { AppError } from '../services/errors';
 import type {
   AdminOrder,
   AdminProduct,
+  AdminVoucher,
   AuthUser,
   Profile,
   Role,
@@ -87,8 +88,13 @@ export function createMemoryServices(options: MemoryOptions = {}) {
 
   const state = {
     stock: new Map<string, number>(), // `${slug}|${size}` -> stok
+    names: new Map<string, string>(),
     prices: new Map<string, number>(),
+    originalPrices: new Map<string, number | null>(),
     inactive: new Set<string>(),
+    customProducts: [] as Product[],
+    uploadedImages: [] as string[],
+    vouchers: new Map<string, AdminVoucher>(),
     orders: [] as StoredOrder[],
     addresses: (options.addresses ?? []).map((a) => ({ ...a })),
     fitProfile: options.fitProfile === undefined ? null : options.fitProfile,
@@ -97,8 +103,22 @@ export function createMemoryServices(options: MemoryOptions = {}) {
     placeOrderCalls: 0,
     signOutCalls: 0,
   };
+  for (const [code, v] of Object.entries(VOUCHERS)) {
+    state.vouchers.set(code, {
+      code,
+      description: `Potongan ${code}`,
+      discountAmount: v.amount,
+      minSubtotal: 0,
+      maxRedemptions: null,
+      perUserLimit: v.perUserLimit,
+      isActive: true,
+      createdAt: '2026-01-15T00:00:00.000Z',
+    });
+  }
   for (const p of PRODUCTS) {
+    state.names.set(p.id, p.name);
     state.prices.set(p.id, p.price);
+    state.originalPrices.set(p.id, p.originalPrice ?? null);
     for (const s of p.sizes) state.stock.set(`${p.id}|${s.code}`, s.stock);
   }
   const owner = options.sessionUserId ?? CUSTOMER.id;
@@ -128,8 +148,10 @@ export function createMemoryServices(options: MemoryOptions = {}) {
     createdAt: '2026-01-15T00:00:00.000Z',
   });
 
+  const allBaseProducts = (): Product[] => [...PRODUCTS, ...state.customProducts];
+
   const productsNow = (): Product[] =>
-    PRODUCTS.filter((p) => !state.inactive.has(p.id)).map((p) => {
+    allBaseProducts().filter((p) => !state.inactive.has(p.id)).map((p) => {
       const sizes = p.sizes.map((s) => {
         const stock = state.stock.get(`${p.id}|${s.code}`) ?? 0;
         return { ...s, stock, statusLabel: stock <= 0 ? 'Habis' : stock <= 3 ? `Sisa ${stock}` : 'Tersedia' };
@@ -317,13 +339,14 @@ export function createMemoryServices(options: MemoryOptions = {}) {
       async validateVoucher(code, subtotal): Promise<VoucherResult> {
         const u = requireUser();
         const clean = code.trim().toUpperCase();
-        const v = VOUCHERS[clean];
-        if (!v) return { valid: false, code: clean, discount: 0, reason: 'not_found' };
+        const v = state.vouchers.get(clean);
+        if (!v || !v.isActive) return { valid: false, code: clean, discount: 0, reason: 'not_found' };
+        if (subtotal < v.minSubtotal) return { valid: false, code: clean, discount: 0, reason: 'min_subtotal' };
         const used = state.redemptions.filter((r) => r.code === clean && r.userId === u.id).length;
         if (v.perUserLimit !== null && used >= v.perUserLimit) {
           return { valid: false, code: clean, discount: 0, reason: 'user_limit' };
         }
-        return { valid: true, code: clean, discount: Math.min(v.amount, subtotal), reason: null };
+        return { valid: true, code: clean, discount: Math.min(v.discountAmount, subtotal), reason: null };
       },
 
       async listAddresses() {
@@ -438,14 +461,14 @@ export function createMemoryServices(options: MemoryOptions = {}) {
 
       async listProducts(): Promise<AdminProduct[]> {
         requireAdmin();
-        return PRODUCTS.map((p) => ({
+        return allBaseProducts().map((p) => ({
           id: p.id,
           slug: p.id,
           sku: p.sku,
-          name: p.name,
+          name: state.names.get(p.id) ?? p.name,
           category: p.category,
           price: state.prices.get(p.id) ?? p.price,
-          originalPrice: p.originalPrice ?? null,
+          originalPrice: state.originalPrices.has(p.id) ? state.originalPrices.get(p.id)! : (p.originalPrice ?? null),
           isActive: !state.inactive.has(p.id),
           imageUrl: p.image,
           variants: p.sizes.map((s) => ({
@@ -455,9 +478,62 @@ export function createMemoryServices(options: MemoryOptions = {}) {
           })),
         }));
       },
+      async createProduct(input) {
+        requireAdmin();
+        const id = `prod-custom-${++idSeq}`;
+        const sku = input.sku.trim().toUpperCase();
+        const name = input.name.trim();
+        const shortName = input.shortName?.trim() || name;
+        const image = input.imageUrl?.trim() || 'https://placehold.co/600x800';
+        const gallery = [image, ...(input.galleryUrls ?? []).map((u) => u.trim()).filter(Boolean)];
+        const colors =
+          input.colors && input.colors.length > 0
+            ? input.colors.map((c) => ({ name: c.name.trim() || 'Hitam', hex: c.hex.trim() || '#111111' }))
+            : [{ name: 'Hitam', hex: '#111111' }];
+        const sizes = input.variants.map((v) => ({
+          code: v.size.trim(),
+          stock: v.stock,
+          statusLabel: v.stock <= 0 ? 'Habis' : v.stock <= 3 ? `Sisa ${v.stock}` : 'Tersedia',
+        }));
+        const created: Product = {
+          id,
+          sku,
+          name,
+          shortName,
+          category: input.category,
+          subCategory: input.subCategory?.trim() ?? '',
+          tagLabel: input.tagLabel?.trim() ?? '',
+          price: input.price,
+          originalPrice: input.originalPrice ?? undefined,
+          image,
+          gallery,
+          colors,
+          sizes,
+          defaultSize: input.defaultSize?.trim() || sizes[0]?.code || 'M',
+          isSoldOut: sizes.every((s) => s.stock === 0),
+          badges: [],
+          specs: {
+            density: input.specs?.density?.trim() || '-',
+            silhouette: input.specs?.silhouette?.trim() || '-',
+            detailLabel: input.specs?.detailLabel?.trim() || 'Detail',
+            detailValue: input.specs?.detailValue?.trim() || '-',
+            fitNote: input.specs?.fitNote?.trim() || '-',
+            materialTag: input.specs?.materialTag?.trim() || '-',
+            carePoints: input.specs?.carePoints?.filter((p) => p.trim()) ?? [],
+          },
+        };
+        state.customProducts.push(created);
+        state.names.set(id, name);
+        state.prices.set(id, input.price);
+        state.originalPrices.set(id, input.originalPrice ?? null);
+        if (input.isActive === false) state.inactive.add(id);
+        for (const s of sizes) state.stock.set(`${id}|${s.code}`, s.stock);
+      },
       async updateProduct(productId, patch) {
         requireAdmin();
+        if (patch.name !== undefined) state.names.set(productId, patch.name);
         if (patch.price !== undefined) state.prices.set(productId, patch.price);
+        if (patch.originalPrice !== undefined) state.originalPrices.set(productId, patch.originalPrice);
         if (patch.isActive !== undefined) {
           if (patch.isActive) state.inactive.delete(productId);
           else state.inactive.add(productId);
@@ -466,6 +542,37 @@ export function createMemoryServices(options: MemoryOptions = {}) {
       async updateStock(variantId, stock) {
         requireAdmin();
         state.stock.set(variantId, stock);
+      },
+      async uploadProductImage(_blob, fileName) {
+        requireAdmin();
+        const url = `/uploads/products/${fileName}`;
+        state.uploadedImages.push(url);
+        return url;
+      },
+
+      async listVouchers() {
+        requireAdmin();
+        return [...state.vouchers.values()];
+      },
+      async saveVoucher(input) {
+        requireAdmin();
+        const code = input.code.trim().toUpperCase();
+        if (code.length < 3) throw new AppError('invalid_voucher', ['code']);
+        state.vouchers.set(code, {
+          code,
+          description: input.description.trim(),
+          discountAmount: input.discountAmount,
+          minSubtotal: input.minSubtotal,
+          maxRedemptions: input.maxRedemptions,
+          perUserLimit: input.perUserLimit,
+          isActive: input.isActive ?? true,
+          createdAt: new Date().toISOString(),
+        });
+      },
+      async toggleVoucher(code, isActive) {
+        requireAdmin();
+        const existing = state.vouchers.get(code);
+        if (existing) existing.isActive = isActive;
       },
 
       async listUsers() {

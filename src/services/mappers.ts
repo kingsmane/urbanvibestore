@@ -13,7 +13,7 @@ import type {
   SizeVariant,
 } from '../data/storeData';
 import { formatDateTimeId } from '../data/storeData';
-import type { AdminOrder, AdminProduct, PaymentMethodId, Profile } from './types';
+import type { AdminOrder, AdminProduct, AdminVoucher, PaymentMethodId, Profile } from './types';
 
 /* ------------------------------ Produk ------------------------------ */
 
@@ -311,4 +311,26 @@ export const mapAdminProduct = (row: DbAdminProductRow): AdminProduct => ({
   variants: [...(row.product_variants ?? [])]
     .sort((a, b) => a.sort_order - b.sort_order)
     .map((v) => ({ id: v.id, size: v.size, stock: v.stock })),
+});
+
+export interface DbVoucherRow {
+  code: string;
+  description: string;
+  discount_amount: number;
+  min_subtotal: number;
+  max_redemptions: number | null;
+  per_user_limit: number | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export const mapAdminVoucher = (row: DbVoucherRow): AdminVoucher => ({
+  code: row.code,
+  description: row.description,
+  discountAmount: row.discount_amount,
+  minSubtotal: row.min_subtotal,
+  maxRedemptions: row.max_redemptions,
+  perUserLimit: row.per_user_limit,
+  isActive: row.is_active,
+  createdAt: row.created_at,
 });

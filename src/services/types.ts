@@ -152,6 +152,53 @@ export interface AdminProductPatch {
   isActive?: boolean;
 }
 
+export interface AdminProductInput {
+  name: string;
+  shortName?: string;
+  sku: string;
+  category: 'Pria' | 'Wanita' | 'Aksesoris';
+  subCategory?: string;
+  tagLabel?: string;
+  price: number;
+  originalPrice?: number | null;
+  imageUrl?: string;
+  galleryUrls?: string[];
+  colors?: { name: string; hex: string }[];
+  defaultSize?: string;
+  variants: { size: string; stock: number }[];
+  specs?: {
+    density?: string;
+    silhouette?: string;
+    detailLabel?: string;
+    detailValue?: string;
+    fitNote?: string;
+    materialTag?: string;
+    carePoints?: string[];
+  };
+  isActive?: boolean;
+}
+
+export interface AdminVoucher {
+  code: string;
+  description: string;
+  discountAmount: number;
+  minSubtotal: number;
+  maxRedemptions: number | null;
+  perUserLimit: number | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface AdminVoucherInput {
+  code: string;
+  description: string;
+  discountAmount: number;
+  minSubtotal: number;
+  maxRedemptions: number | null;
+  perUserLimit: number | null;
+  isActive?: boolean;
+}
+
 export type AdminFulfillmentTarget = 'processing' | 'shipped' | 'completed';
 
 export interface AdminService {
@@ -162,8 +209,14 @@ export interface AdminService {
   cancelOrder(orderId: string, reason?: string): Promise<void>;
 
   listProducts(): Promise<AdminProduct[]>;
+  createProduct(input: AdminProductInput): Promise<void>;
   updateProduct(productId: string, patch: AdminProductPatch): Promise<void>;
   updateStock(variantId: string, stock: number): Promise<void>;
+  uploadProductImage(blob: Blob, fileName: string): Promise<string>;
+
+  listVouchers(): Promise<AdminVoucher[]>;
+  saveVoucher(input: AdminVoucherInput): Promise<void>;
+  toggleVoucher(code: string, isActive: boolean): Promise<void>;
 
   listUsers(): Promise<Profile[]>;
   setUserRole(userId: string, role: Role): Promise<void>;

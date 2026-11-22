@@ -8,11 +8,13 @@ import {
   DbOrderRow,
   DbProductRow,
   DbProfileRow,
+  DbVoucherRow,
   ORDER_SELECT,
   PRODUCT_SELECT,
   mapAddress,
   mapAdminOrder,
   mapAdminProduct,
+  mapAdminVoucher,
   mapFitProfile,
   mapOrder,
   mapProduct,
@@ -321,6 +323,85 @@ function createAdminService(sb: SupabaseClient): AdminService {
       return (rows as DbAdminProductRow[]).map(mapAdminProduct);
     },
 
+    async createProduct(input) {
+      const baseSlug = input.name
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'produk';
+      const slug = `${baseSlug}-${Date.now().toString(36)}`;
+      const cleanName = input.name.trim();
+      const cleanShortName = input.shortName?.trim() || cleanName;
+      const cleanImage = input.imageUrl?.trim() ?? '';
+      const defaultSize = input.defaultSize?.trim() || input.variants[0]?.size || 'M';
+      const specs = {
+        density: input.specs?.density?.trim() || '-',
+        silhouette: input.specs?.silhouette?.trim() || '-',
+        detailLabel: input.specs?.detailLabel?.trim() || 'Detail',
+        detailValue: input.specs?.detailValue?.trim() || '-',
+        fitNote: input.specs?.fitNote?.trim() || '-',
+        materialTag: input.specs?.materialTag?.trim() || '-',
+        carePoints: input.specs?.carePoints?.filter((p) => p.trim()) ?? [],
+      };
+
+      const productRow = unwrap(
+        await sb
+          .from('products')
+          .insert({
+            slug,
+            sku: input.sku.trim().toUpperCase(),
+            name: cleanName,
+            short_name: cleanShortName,
+            category: input.category,
+            sub_category: input.subCategory?.trim() ?? '',
+            tag_label: input.tagLabel?.trim() ?? '',
+            price: input.price,
+            original_price: input.originalPrice ?? null,
+            image_url: cleanImage,
+            default_size: defaultSize,
+            specs,
+            is_active: input.isActive ?? true,
+          })
+          .select('id')
+          .single()
+      ) as { id: string };
+
+      const allImages = [cleanImage, ...(input.galleryUrls ?? []).map((u) => u.trim())]
+        .filter(Boolean);
+      if (allImages.length > 0) {
+        const { error: imgErr } = await sb.from('product_images').insert(
+          allImages.map((url, idx) => ({ product_id: productRow.id, url, sort_order: idx }))
+        );
+        if (imgErr) throw toAppError(imgErr);
+      }
+
+      const colors =
+        input.colors && input.colors.length > 0
+          ? input.colors
+          : [{ name: 'Hitam', hex: '#111111' }];
+      const { error: colorErr } = await sb.from('product_colors').insert(
+        colors.map((c, idx) => ({
+          product_id: productRow.id,
+          name: c.name.trim() || 'Hitam',
+          hex: /^#[0-9a-fA-F]{6}$/.test(c.hex.trim()) ? c.hex.trim() : '#111111',
+          sort_order: idx,
+        }))
+      );
+      if (colorErr) throw toAppError(colorErr);
+
+      if (input.variants.length > 0) {
+        const { error: varErr } = await sb.from('product_variants').insert(
+          input.variants.map((v, idx) => ({
+            product_id: productRow.id,
+            size: v.size.trim(),
+            stock: v.stock,
+            sort_order: idx,
+          }))
+        );
+        if (varErr) throw toAppError(varErr);
+      }
+    },
+
     async updateProduct(productId, patch) {
       const update: Record<string, unknown> = {};
       if (patch.name !== undefined) update.name = patch.name;
@@ -333,6 +414,69 @@ function createAdminService(sb: SupabaseClient): AdminService {
 
     async updateStock(variantId, stock) {
       const { error } = await sb.from('product_variants').update({ stock }).eq('id', variantId);
+      if (error) throw toAppError(error);
+    },
+
+    async uploadProductImage(blob, fileName) {
+      const buffer = await blob.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i += 1) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const dataBase64 = btoa(binary);
+
+      // 1. Coba unggah ke server lokal (/api/upload pada Vite dev/preview)
+      try {
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileName, dataBase64 }),
+        });
+        if (res.ok) {
+          const payload = (await res.json()) as { url?: string };
+          if (payload.url) return payload.url;
+        }
+      } catch {
+        /* lanjut ke Supabase Storage bila endpoint lokal tidak tersedia */
+      }
+
+      // 2. Fallback ke Supabase Storage bucket product-images
+      const safeName = `${Date.now()}-${fileName.replace(/[^a-zA-Z0-9._-]/g, '-')}`;
+      const { error } = await sb.storage
+        .from('product-images')
+        .upload(`products/${safeName}`, blob, { contentType: blob.type || 'image/webp' });
+      if (error) throw toAppError(error);
+      const { data } = sb.storage.from('product-images').getPublicUrl(`products/${safeName}`);
+      return data.publicUrl;
+    },
+
+    async listVouchers() {
+      const rows = unwrap(
+        await sb.from('vouchers').select('*').order('created_at', { ascending: false })
+      );
+      return (rows as DbVoucherRow[]).map(mapAdminVoucher);
+    },
+
+    async saveVoucher(input) {
+      const cleanCode = input.code.trim().toUpperCase();
+      const { error } = await sb.from('vouchers').upsert(
+        {
+          code: cleanCode,
+          description: input.description.trim(),
+          discount_amount: input.discountAmount,
+          min_subtotal: input.minSubtotal,
+          max_redemptions: input.maxRedemptions,
+          per_user_limit: input.perUserLimit,
+          is_active: input.isActive ?? true,
+        },
+        { onConflict: 'code' }
+      );
+      if (error) throw toAppError(error);
+    },
+
+    async toggleVoucher(code, isActive) {
+      const { error } = await sb.from('vouchers').update({ is_active: isActive }).eq('code', code);
       if (error) throw toAppError(error);
     },
 

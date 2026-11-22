@@ -37,6 +37,8 @@ describe('panel admin: ringkasan', () => {
     expect(await screen.findByRole('heading', { name: 'Pesanan' })).toBeInTheDocument();
     await user.click(screen.getByRole('link', { name: 'Produk & Stok' }));
     expect(await screen.findByRole('heading', { name: 'Produk & Stok' })).toBeInTheDocument();
+    await user.click(screen.getByRole('link', { name: 'Voucher' }));
+    expect(await screen.findByRole('heading', { name: /Voucher & Promo/ })).toBeInTheDocument();
     await user.click(screen.getByRole('link', { name: 'Pengguna' }));
     expect(await screen.findByRole('heading', { name: 'Pengguna' })).toBeInTheDocument();
   });
@@ -52,6 +54,11 @@ describe('panel admin: pesanan', () => {
     await user.selectOptions(screen.getByLabelText('Status'), 'PAID');
     expect(screen.queryByText('#URBN-TEST-0001')).toBeNull();
     expect(screen.getByText('#URBN-TEST-0002')).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText('Status'), 'SEMUA');
+    await user.type(screen.getByLabelText('Cari pesanan'), '0003');
+    expect(screen.queryByText('#URBN-TEST-0002')).toBeNull();
+    expect(screen.getByText('#URBN-TEST-0003')).toBeInTheDocument();
   });
 
   it('alur lengkap: tandai lunas -> proses -> kirim (resi) -> selesai', async () => {
@@ -115,6 +122,70 @@ describe('panel admin: produk & stok', () => {
     const { state } = adminApp('/admin/produk');
     await user.click(await screen.findByLabelText('Aktifkan Wide-Leg Pleated Trousers - Ink Black'));
     await waitFor(() => expect(state.inactive.has('prod-3')).toBe(true));
+  });
+
+  it('admin dapat mencari produk dan mengubah nama serta harga coret', async () => {
+    const user = userEvent.setup();
+    const { state } = adminApp('/admin/produk');
+    await user.type(await screen.findByLabelText('Cari produk'), 'Linen Shirt');
+    expect(screen.queryByLabelText(/Harga Oversized Heavyweight Tee/)).toBeNull();
+
+    const nameInput = screen.getByLabelText(/^Nama Boxy Minimalist Linen Shirt/);
+    const origInput = screen.getByLabelText(/^Harga coret Boxy Minimalist Linen Shirt/);
+    await user.clear(nameInput);
+    await user.type(nameInput, 'Boxy Linen Shirt V2');
+    await user.clear(origInput);
+    await user.type(origInput, '450000');
+    await user.click(within(nameInput.closest('li') as HTMLElement).getByRole('button', { name: 'Simpan Harga' }));
+    await waitFor(() => {
+      expect(state.names.get('prod-2')).toBe('Boxy Linen Shirt V2');
+      expect(state.originalPrices.get('prod-2')).toBe(450000);
+    });
+  });
+
+  it('admin dapat menambah produk baru dengan color picker dan upload foto terkompresi', async () => {
+    const user = userEvent.setup();
+    const { state } = adminApp('/admin/produk');
+    await user.click(await screen.findByRole('button', { name: '+ Tambah Produk' }));
+    await user.type(screen.getByLabelText('Nama Produk Baru'), 'Minimalist Cargo Pants - Ink');
+    await user.type(screen.getByLabelText('Nama Singkat Produk Baru'), 'Minimalist Cargo Pants');
+    await user.type(screen.getByLabelText('SKU Produk Baru'), 'URBN-CRG-99');
+    await user.type(screen.getByLabelText('Harga Produk Baru'), '549000');
+
+    const file = new File(['dummy-image-bytes'], 'cargo.png', { type: 'image/png' });
+    await user.upload(screen.getByLabelText('Upload Foto Utama'), file);
+    await waitFor(() => expect(state.uploadedImages).toContain('/uploads/products/cargo.png'));
+    expect(screen.getByLabelText('URL Foto Produk Baru')).toHaveValue('/uploads/products/cargo.png');
+
+    await user.click(screen.getByRole('button', { name: '+ Tambah Warna' }));
+    await user.type(screen.getByLabelText('Nama warna 3'), 'Olive Green');
+
+    await user.type(screen.getByLabelText('Catatan Fitting Produk Baru'), 'Model 180cm memakai L');
+    await user.click(screen.getByRole('button', { name: 'Simpan Produk Baru' }));
+
+    expect(await screen.findByText('Minimalist Cargo Pants - Ink')).toBeInTheDocument();
+    expect(state.customProducts[0].shortName).toBe('Minimalist Cargo Pants');
+    expect(state.customProducts[0].image).toBe('/uploads/products/cargo.png');
+    expect(state.customProducts[0].specs.fitNote).toBe('Model 180cm memakai L');
+    expect(state.customProducts[0].colors).toHaveLength(3);
+  });
+});
+
+describe('panel admin: voucher', () => {
+  it('admin membuat voucher baru dan menonaktifkannya', async () => {
+    const user = userEvent.setup();
+    const { state } = adminApp('/admin/voucher');
+    await user.type(await screen.findByLabelText('Kode Voucher'), 'hemat75');
+    await user.type(screen.getByLabelText('Deskripsi Voucher'), 'Promo Akhir Pekan');
+    await user.type(screen.getByLabelText('Nominal Diskon'), '75000');
+    await user.click(screen.getByRole('button', { name: 'Simpan Voucher' }));
+
+    await waitFor(() => expect(state.vouchers.get('HEMAT75')?.discountAmount).toBe(75000));
+    const toggle = await screen.findByLabelText('Aktifkan voucher HEMAT75');
+    expect(toggle).toBeChecked();
+
+    await user.click(toggle);
+    await waitFor(() => expect(state.vouchers.get('HEMAT75')?.isActive).toBe(false));
   });
 });
 

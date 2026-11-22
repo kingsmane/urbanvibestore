@@ -25,6 +25,35 @@ const badgeClass = (status: OrderStatus) =>
       ? 'bg-surface-muted text-on-surface-variant'
       : 'bg-primary text-on-primary';
 
+const PAGE_SIZE = 20;
+
+const csvCell = (val: string | number | undefined): string => {
+  const str = String(val ?? '');
+  return `"${str.replace(/"/g, '""')}"`;
+};
+
+const exportOrdersCsv = (orders: AdminOrder[]) => {
+  const header = ['No. Pesanan', 'Tanggal', 'Penerima', 'Email', 'Total', 'Status', 'Kurir', 'Resi'];
+  const rows = orders.map((o) => [
+    o.orderNumber,
+    o.createdAt,
+    o.recipientName,
+    o.recipientEmail,
+    o.total,
+    ORDER_STATUS_LABEL[o.status],
+    o.courierName,
+    o.trackingNumber ?? '',
+  ]);
+  const csv = [header, ...rows].map((r) => r.map(csvCell).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `pesanan-urbanstore-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
 interface OrderActionsProps {
   order: AdminOrder;
   onDone: () => Promise<void>;
@@ -33,6 +62,7 @@ interface OrderActionsProps {
 const OrderActions: React.FC<OrderActionsProps> = ({ order, onDone }) => {
   const { admin } = useServices();
   const [tracking, setTracking] = useState('');
+  const [cancelReason, setCancelReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,6 +85,8 @@ const OrderActions: React.FC<OrderActionsProps> = ({ order, onDone }) => {
   const primary = `${btn} bg-primary text-on-primary hover:bg-badge-promo hover:text-text-on-accent`;
   const danger = `${btn} bg-surface-muted text-error hover:bg-error-container`;
 
+  const reasonOrDefault = () => cancelReason.trim() || 'Dibatalkan admin';
+
   return (
     <div className="space-y-space-sm">
       <div className="flex flex-wrap items-center gap-space-sm">
@@ -63,7 +95,7 @@ const OrderActions: React.FC<OrderActionsProps> = ({ order, onDone }) => {
             <button type="button" disabled={busy} className={primary} onClick={() => run(() => admin.markOrderPaid(order.id))}>
               Tandai Lunas
             </button>
-            <button type="button" disabled={busy} className={danger} onClick={() => run(() => admin.cancelOrder(order.id, 'Dibatalkan admin'))}>
+            <button type="button" disabled={busy} className={danger} onClick={() => run(() => admin.cancelOrder(order.id, reasonOrDefault()))}>
               Batalkan
             </button>
           </>
@@ -73,7 +105,7 @@ const OrderActions: React.FC<OrderActionsProps> = ({ order, onDone }) => {
             <button type="button" disabled={busy} className={primary} onClick={() => run(() => admin.updateFulfillment(order.id, 'processing'))}>
               Proses Pesanan
             </button>
-            <button type="button" disabled={busy} className={danger} onClick={() => run(() => admin.cancelOrder(order.id, 'Dibatalkan admin'))}>
+            <button type="button" disabled={busy} className={danger} onClick={() => run(() => admin.cancelOrder(order.id, reasonOrDefault()))}>
               Batalkan &amp; Refund
             </button>
           </>
@@ -93,7 +125,7 @@ const OrderActions: React.FC<OrderActionsProps> = ({ order, onDone }) => {
             <button type="button" disabled={busy} className={primary} onClick={() => run(() => admin.updateFulfillment(order.id, 'shipped', tracking))}>
               Tandai Dikirim
             </button>
-            <button type="button" disabled={busy} className={danger} onClick={() => run(() => admin.cancelOrder(order.id, 'Dibatalkan admin'))}>
+            <button type="button" disabled={busy} className={danger} onClick={() => run(() => admin.cancelOrder(order.id, reasonOrDefault()))}>
               Batalkan &amp; Refund
             </button>
           </>
@@ -104,6 +136,15 @@ const OrderActions: React.FC<OrderActionsProps> = ({ order, onDone }) => {
           </button>
         )}
       </div>
+      {['PENDING_PAYMENT', 'PAID', 'PROCESSING'].includes(order.status) && (
+        <input
+          value={cancelReason}
+          onChange={(e) => setCancelReason(e.target.value)}
+          placeholder="Alasan pembatalan (opsional)"
+          aria-label="Alasan pembatalan"
+          className="bg-surface-subtle border border-border-hairline p-2 font-body-sm text-body-sm outline-none focus:border-border-strong w-full max-w-md"
+        />
+      )}
       {error && (
         <p role="alert" className="font-body-sm text-body-sm text-error font-medium">
           {error}
@@ -117,31 +158,69 @@ export const AdminOrders: React.FC = () => {
   const { admin } = useServices();
   const { data, loading, error, reload } = useAdminData(() => admin.listOrders());
   const [filter, setFilter] = useState<'SEMUA' | OrderStatus>('SEMUA');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   const [openId, setOpenId] = useState<string | null>(null);
 
-  const orders = useMemo(
-    () => (data ?? []).filter((o) => filter === 'SEMUA' || o.status === filter),
-    [data, filter]
-  );
+  const orders = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return (data ?? []).filter((o) => {
+      if (filter !== 'SEMUA' && o.status !== filter) return false;
+      if (!q) return true;
+      return (
+        o.orderNumber.toLowerCase().includes(q) ||
+        o.recipientName.toLowerCase().includes(q) ||
+        o.recipientEmail.toLowerCase().includes(q) ||
+        (o.trackingNumber ?? '').toLowerCase().includes(q)
+      );
+    });
+  }, [data, filter, search]);
+
+  const totalPages = Math.max(1, Math.ceil(orders.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pagedOrders = orders.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   return (
     <div className="space-y-space-md">
       <div className="flex flex-wrap items-end justify-between gap-space-sm">
         <h1 className="font-headline-md text-headline-md uppercase tracking-tight text-primary">Pesanan</h1>
-        <label className="flex items-center gap-space-xs font-label-caps text-label-caps uppercase text-on-surface-variant">
-          Status
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value as typeof filter)}
-            className="bg-canvas-base border border-border-hairline p-2 font-body-sm text-body-sm normal-case"
+        <div className="flex flex-wrap items-center gap-space-sm">
+          <input
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            placeholder="Cari no. pesanan, penerima, resi…"
+            aria-label="Cari pesanan"
+            className="bg-canvas-base border border-border-hairline p-2 font-body-sm text-body-sm outline-none focus:border-border-strong w-64"
+          />
+          <label className="flex items-center gap-space-xs font-label-caps text-label-caps uppercase text-on-surface-variant">
+            Status
+            <select
+              value={filter}
+              onChange={(e) => {
+                setFilter(e.target.value as typeof filter);
+                setPage(1);
+              }}
+              className="bg-canvas-base border border-border-hairline p-2 font-body-sm text-body-sm normal-case"
+            >
+              {STATUS_FILTERS.map((s) => (
+                <option key={s} value={s}>
+                  {s === 'SEMUA' ? 'Semua status' : ORDER_STATUS_LABEL[s]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            disabled={orders.length === 0}
+            onClick={() => exportOrdersCsv(orders)}
+            className="px-space-md py-2 border border-border-strong bg-canvas-base text-primary hover:bg-primary hover:text-on-primary disabled:opacity-40 font-label-caps text-label-caps uppercase font-bold cursor-pointer transition-colors"
           >
-            {STATUS_FILTERS.map((s) => (
-              <option key={s} value={s}>
-                {s === 'SEMUA' ? 'Semua status' : ORDER_STATUS_LABEL[s]}
-              </option>
-            ))}
-          </select>
-        </label>
+            Ekspor CSV
+          </button>
+        </div>
       </div>
 
       {loading && <p role="status" className="text-outline">Memuat pesanan…</p>}
@@ -151,7 +230,7 @@ export const AdminOrders: React.FC = () => {
       )}
 
       <ul className="space-y-space-sm">
-        {orders.map((o) => {
+        {pagedOrders.map((o) => {
           const open = openId === o.id;
           return (
             <li key={o.id} className="bg-canvas-base border border-border-hairline">
@@ -224,6 +303,32 @@ export const AdminOrders: React.FC = () => {
           );
         })}
       </ul>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-space-sm border-t border-border-hairline font-label-caps text-label-caps uppercase">
+          <span className="text-on-surface-variant">
+            Halaman {safePage} dari {totalPages} ({orders.length} pesanan)
+          </span>
+          <div className="flex gap-space-xs">
+            <button
+              type="button"
+              disabled={safePage <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="px-space-sm py-1.5 border border-border-hairline bg-canvas-base disabled:opacity-40 cursor-pointer"
+            >
+              Sebelumnya
+            </button>
+            <button
+              type="button"
+              disabled={safePage >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              className="px-space-sm py-1.5 border border-border-hairline bg-canvas-base disabled:opacity-40 cursor-pointer"
+            >
+              Berikutnya
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

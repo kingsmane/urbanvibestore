@@ -5,11 +5,13 @@ import { AdminDashboard } from './AdminDashboard';
 import { AdminOrders } from './AdminOrders';
 import { AdminProducts } from './AdminProducts';
 import { AdminUsers } from './AdminUsers';
+import { AdminVouchers } from './AdminVouchers';
 
 const NAV = [
   { to: '/admin', label: 'Ringkasan', end: true },
   { to: '/admin/pesanan', label: 'Pesanan', end: false },
   { to: '/admin/produk', label: 'Produk & Stok', end: false },
+  { to: '/admin/voucher', label: 'Voucher', end: false },
   { to: '/admin/pengguna', label: 'Pengguna', end: false },
 ];
 
@@ -68,6 +70,7 @@ export default function AdminApp() {
           <Route index element={<AdminDashboard />} />
           <Route path="pesanan" element={<AdminOrders />} />
           <Route path="produk" element={<AdminProducts />} />
+          <Route path="voucher" element={<AdminVouchers />} />
           <Route path="pengguna" element={<AdminUsers />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />
         </Routes>
