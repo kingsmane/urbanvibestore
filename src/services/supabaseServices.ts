@@ -323,6 +323,73 @@ function createAdminService(sb: SupabaseClient): AdminService {
       return (rows as DbAdminProductRow[]).map(mapAdminProduct);
     },
 
+    async getProduct(productId) {
+      const { data, error } = await sb
+        .from('products')
+        .select(
+          'id, slug, sku, name, short_name, category, sub_category, tag_label, price, original_price, image_url, default_size, specs, is_active, product_images(url, sort_order), product_colors(name, hex, sort_order), product_variants(size, stock, sort_order)'
+        )
+        .eq('id', productId)
+        .maybeSingle();
+      if (error) throw toAppError(error);
+      if (!data) return null;
+      const row = data as {
+        id: string;
+        slug: string;
+        sku: string;
+        name: string;
+        short_name: string;
+        category: 'Pria' | 'Wanita' | 'Aksesoris';
+        sub_category: string;
+        tag_label: string;
+        price: number;
+        original_price: number | null;
+        image_url: string;
+        default_size: string | null;
+        specs: Record<string, unknown> | null;
+        is_active: boolean;
+        product_images?: { url: string; sort_order: number }[];
+        product_colors?: { name: string; hex: string; sort_order: number }[];
+        product_variants?: { size: string; stock: number; sort_order: number }[];
+      };
+      const sortedImages = [...(row.product_images ?? [])]
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .map((i) => i.url);
+      const galleryUrls = sortedImages.filter((u) => u !== row.image_url);
+      const specs = (row.specs ?? {}) as Record<string, unknown>;
+      return {
+        id: row.id,
+        slug: row.slug,
+        sku: row.sku,
+        name: row.name,
+        shortName: row.short_name,
+        category: row.category,
+        subCategory: row.sub_category,
+        tagLabel: row.tag_label,
+        price: row.price,
+        originalPrice: row.original_price,
+        imageUrl: row.image_url,
+        galleryUrls,
+        colors: [...(row.product_colors ?? [])]
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .map((c) => ({ name: c.name, hex: c.hex })),
+        defaultSize: row.default_size ?? undefined,
+        variants: [...(row.product_variants ?? [])]
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .map((v) => ({ size: v.size, stock: v.stock })),
+        specs: {
+          density: typeof specs.density === 'string' ? specs.density : '',
+          silhouette: typeof specs.silhouette === 'string' ? specs.silhouette : '',
+          detailLabel: typeof specs.detailLabel === 'string' ? specs.detailLabel : '',
+          detailValue: typeof specs.detailValue === 'string' ? specs.detailValue : '',
+          fitNote: typeof specs.fitNote === 'string' ? specs.fitNote : '',
+          materialTag: typeof specs.materialTag === 'string' ? specs.materialTag : '',
+          carePoints: Array.isArray(specs.carePoints) ? (specs.carePoints as string[]) : [],
+        },
+        isActive: row.is_active,
+      };
+    },
+
     async createProduct(input) {
       const baseSlug = input.name
         .trim()
@@ -399,6 +466,91 @@ function createAdminService(sb: SupabaseClient): AdminService {
           }))
         );
         if (varErr) throw toAppError(varErr);
+      }
+    },
+
+    async replaceProduct(productId, input) {
+      const cleanName = input.name.trim();
+      const cleanShortName = input.shortName?.trim() || cleanName;
+      const cleanImage = input.imageUrl?.trim() ?? '';
+      const defaultSize = input.defaultSize?.trim() || input.variants[0]?.size || 'M';
+      const specs = {
+        density: input.specs?.density?.trim() || '-',
+        silhouette: input.specs?.silhouette?.trim() || '-',
+        detailLabel: input.specs?.detailLabel?.trim() || 'Detail',
+        detailValue: input.specs?.detailValue?.trim() || '-',
+        fitNote: input.specs?.fitNote?.trim() || '-',
+        materialTag: input.specs?.materialTag?.trim() || '-',
+        carePoints: input.specs?.carePoints?.filter((p) => p.trim()) ?? [],
+      };
+
+      const { error: prodErr } = await sb
+        .from('products')
+        .update({
+          sku: input.sku.trim().toUpperCase(),
+          name: cleanName,
+          short_name: cleanShortName,
+          category: input.category,
+          sub_category: input.subCategory?.trim() ?? '',
+          tag_label: input.tagLabel?.trim() ?? '',
+          price: input.price,
+          original_price: input.originalPrice ?? null,
+          image_url: cleanImage,
+          default_size: defaultSize,
+          specs,
+          is_active: input.isActive ?? true,
+        })
+        .eq('id', productId);
+      if (prodErr) throw toAppError(prodErr);
+
+      const { error: delImgErr } = await sb.from('product_images').delete().eq('product_id', productId);
+      if (delImgErr) throw toAppError(delImgErr);
+      const allImages = [cleanImage, ...(input.galleryUrls ?? []).map((u) => u.trim())].filter(Boolean);
+      if (allImages.length > 0) {
+        const { error: imgErr } = await sb.from('product_images').insert(
+          allImages.map((url, idx) => ({ product_id: productId, url, sort_order: idx }))
+        );
+        if (imgErr) throw toAppError(imgErr);
+      }
+
+      const { error: delColErr } = await sb.from('product_colors').delete().eq('product_id', productId);
+      if (delColErr) throw toAppError(delColErr);
+      const colors =
+        input.colors && input.colors.length > 0 ? input.colors : [{ name: 'Hitam', hex: '#111111' }];
+      const { error: colErr } = await sb.from('product_colors').insert(
+        colors.map((c, idx) => ({
+          product_id: productId,
+          name: c.name.trim() || 'Hitam',
+          hex: /^#[0-9a-fA-F]{6}$/.test(c.hex.trim()) ? c.hex.trim() : '#111111',
+          sort_order: idx,
+        }))
+      );
+      if (colErr) throw toAppError(colErr);
+
+      if (input.variants.length > 0) {
+        const { error: upVarErr } = await sb.from('product_variants').upsert(
+          input.variants.map((v, idx) => ({
+            product_id: productId,
+            size: v.size.trim(),
+            stock: v.stock,
+            sort_order: idx,
+          })),
+          { onConflict: 'product_id,size' }
+        );
+        if (upVarErr) throw toAppError(upVarErr);
+      }
+      const keepSizes = new Set(input.variants.map((v) => v.size.trim()));
+      const { data: existingVars, error: listVarErr } = await sb
+        .from('product_variants')
+        .select('id, size')
+        .eq('product_id', productId);
+      if (listVarErr) throw toAppError(listVarErr);
+      const toDelete = (existingVars ?? [])
+        .filter((v: { id: string; size: string }) => !keepSizes.has(v.size))
+        .map((v: { id: string }) => v.id);
+      if (toDelete.length > 0) {
+        const { error: delVarErr } = await sb.from('product_variants').delete().in('id', toDelete);
+        if (delVarErr) throw toAppError(delVarErr);
       }
     },
 

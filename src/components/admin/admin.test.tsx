@@ -169,6 +169,27 @@ describe('panel admin: produk & stok', () => {
     expect(state.customProducts[0].specs.fitNote).toBe('Model 180cm memakai L');
     expect(state.customProducts[0].colors).toHaveLength(3);
   });
+
+  it('admin dapat membuka halaman edit detail produk dan menyimpan perubahan menyeluruh', async () => {
+    const user = userEvent.setup();
+    const { state } = adminApp('/admin/produk');
+    const editLinks = await screen.findAllByRole('link', { name: 'Edit Detail' });
+    await user.click(editLinks[0]);
+
+    expect(await screen.findByRole('heading', { name: 'Edit Produk' })).toBeInTheDocument();
+    const shortInput = await screen.findByLabelText('Nama Singkat Produk Baru');
+    await user.clear(shortInput);
+    await user.type(shortInput, 'Heavyweight Tee Pro');
+
+    const fitInput = screen.getByLabelText('Catatan Fitting Produk Baru');
+    await user.clear(fitInput);
+    await user.type(fitInput, 'Model 185cm memakai XL');
+
+    await user.click(screen.getByRole('button', { name: 'Simpan Perubahan' }));
+    expect(await screen.findByRole('heading', { name: 'Produk & Stok' })).toBeInTheDocument();
+    expect(state.productOverrides.get('prod-1')?.shortName).toBe('Heavyweight Tee Pro');
+    expect(state.productOverrides.get('prod-1')?.specs.fitNote).toBe('Model 185cm memakai XL');
+  });
 });
 
 describe('panel admin: voucher', () => {

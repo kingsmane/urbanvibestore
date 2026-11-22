@@ -178,6 +178,11 @@ export interface AdminProductInput {
   isActive?: boolean;
 }
 
+export interface AdminProductDetail extends AdminProductInput {
+  id: string;
+  slug: string;
+}
+
 export interface AdminVoucher {
   code: string;
   description: string;
@@ -209,7 +214,9 @@ export interface AdminService {
   cancelOrder(orderId: string, reason?: string): Promise<void>;
 
   listProducts(): Promise<AdminProduct[]>;
+  getProduct(productId: string): Promise<AdminProductDetail | null>;
   createProduct(input: AdminProductInput): Promise<void>;
+  replaceProduct(productId: string, input: AdminProductInput): Promise<void>;
   updateProduct(productId: string, patch: AdminProductPatch): Promise<void>;
   updateStock(variantId: string, stock: number): Promise<void>;
   uploadProductImage(blob: Blob, fileName: string): Promise<string>;

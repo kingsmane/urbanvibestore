@@ -3,6 +3,7 @@ import { Link, NavLink, Navigate, Route, Routes, useNavigate } from 'react-route
 import { useAuth } from '../../auth/AuthContext';
 import { AdminDashboard } from './AdminDashboard';
 import { AdminOrders } from './AdminOrders';
+import { AdminProductEdit } from './AdminProductEdit';
 import { AdminProducts } from './AdminProducts';
 import { AdminUsers } from './AdminUsers';
 import { AdminVouchers } from './AdminVouchers';
@@ -70,6 +71,7 @@ export default function AdminApp() {
           <Route index element={<AdminDashboard />} />
           <Route path="pesanan" element={<AdminOrders />} />
           <Route path="produk" element={<AdminProducts />} />
+          <Route path="produk/:productId" element={<AdminProductEdit />} />
           <Route path="voucher" element={<AdminVouchers />} />
           <Route path="pengguna" element={<AdminUsers />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />

@@ -21,6 +21,7 @@ import { AppError } from '../services/errors';
 import type {
   AdminOrder,
   AdminProduct,
+  AdminProductDetail,
   AdminVoucher,
   AuthUser,
   Profile,
@@ -93,6 +94,7 @@ export function createMemoryServices(options: MemoryOptions = {}) {
     originalPrices: new Map<string, number | null>(),
     inactive: new Set<string>(),
     customProducts: [] as Product[],
+    productOverrides: new Map<string, Product>(),
     uploadedImages: [] as string[],
     vouchers: new Map<string, AdminVoucher>(),
     orders: [] as StoredOrder[],
@@ -148,7 +150,8 @@ export function createMemoryServices(options: MemoryOptions = {}) {
     createdAt: '2026-01-15T00:00:00.000Z',
   });
 
-  const allBaseProducts = (): Product[] => [...PRODUCTS, ...state.customProducts];
+  const allBaseProducts = (): Product[] =>
+    [...PRODUCTS, ...state.customProducts].map((p) => state.productOverrides.get(p.id) ?? p);
 
   const productsNow = (): Product[] =>
     allBaseProducts().filter((p) => !state.inactive.has(p.id)).map((p) => {
@@ -478,6 +481,35 @@ export function createMemoryServices(options: MemoryOptions = {}) {
           })),
         }));
       },
+      async getProduct(productId): Promise<AdminProductDetail | null> {
+        requireAdmin();
+        const base = allBaseProducts().find((p) => p.id === productId);
+        if (!base) return null;
+        return {
+          id: base.id,
+          slug: base.id,
+          name: state.names.get(base.id) ?? base.name,
+          shortName: base.shortName,
+          sku: base.sku,
+          category: base.category,
+          subCategory: base.subCategory,
+          tagLabel: base.tagLabel,
+          price: state.prices.get(base.id) ?? base.price,
+          originalPrice: state.originalPrices.has(base.id)
+            ? state.originalPrices.get(base.id)!
+            : (base.originalPrice ?? null),
+          imageUrl: base.image,
+          galleryUrls: base.gallery.filter((u) => u !== base.image),
+          colors: base.colors,
+          defaultSize: base.defaultSize,
+          variants: base.sizes.map((s) => ({
+            size: s.code,
+            stock: state.stock.get(`${base.id}|${s.code}`) ?? s.stock,
+          })),
+          specs: base.specs,
+          isActive: !state.inactive.has(base.id),
+        };
+      },
       async createProduct(input) {
         requireAdmin();
         const id = `prod-custom-${++idSeq}`;
@@ -528,6 +560,57 @@ export function createMemoryServices(options: MemoryOptions = {}) {
         state.originalPrices.set(id, input.originalPrice ?? null);
         if (input.isActive === false) state.inactive.add(id);
         for (const s of sizes) state.stock.set(`${id}|${s.code}`, s.stock);
+      },
+      async replaceProduct(productId, input) {
+        requireAdmin();
+        const existing = allBaseProducts().find((p) => p.id === productId);
+        if (!existing) throw new AppError('item_unavailable');
+        const name = input.name.trim();
+        const shortName = input.shortName?.trim() || name;
+        const image = input.imageUrl?.trim() || existing.image;
+        const gallery = [image, ...(input.galleryUrls ?? []).map((u) => u.trim()).filter(Boolean)];
+        const colors =
+          input.colors && input.colors.length > 0
+            ? input.colors.map((c) => ({ name: c.name.trim() || 'Hitam', hex: c.hex.trim() || '#111111' }))
+            : existing.colors;
+        const sizes = input.variants.map((v) => ({
+          code: v.size.trim(),
+          stock: v.stock,
+          statusLabel: v.stock <= 0 ? 'Habis' : v.stock <= 3 ? `Sisa ${v.stock}` : 'Tersedia',
+        }));
+        const updated: Product = {
+          ...existing,
+          sku: input.sku.trim().toUpperCase(),
+          name,
+          shortName,
+          category: input.category,
+          subCategory: input.subCategory?.trim() ?? '',
+          tagLabel: input.tagLabel?.trim() ?? '',
+          price: input.price,
+          originalPrice: input.originalPrice ?? undefined,
+          image,
+          gallery,
+          colors,
+          sizes,
+          defaultSize: input.defaultSize?.trim() || sizes[0]?.code || existing.defaultSize,
+          isSoldOut: sizes.every((s) => s.stock === 0),
+          specs: {
+            density: input.specs?.density?.trim() || '-',
+            silhouette: input.specs?.silhouette?.trim() || '-',
+            detailLabel: input.specs?.detailLabel?.trim() || 'Detail',
+            detailValue: input.specs?.detailValue?.trim() || '-',
+            fitNote: input.specs?.fitNote?.trim() || '-',
+            materialTag: input.specs?.materialTag?.trim() || '-',
+            carePoints: input.specs?.carePoints?.filter((p) => p.trim()) ?? [],
+          },
+        };
+        state.productOverrides.set(productId, updated);
+        state.names.set(productId, name);
+        state.prices.set(productId, input.price);
+        state.originalPrices.set(productId, input.originalPrice ?? null);
+        if (input.isActive === false) state.inactive.add(productId);
+        else state.inactive.delete(productId);
+        for (const s of sizes) state.stock.set(`${productId}|${s.code}`, s.stock);
       },
       async updateProduct(productId, patch) {
         requireAdmin();
