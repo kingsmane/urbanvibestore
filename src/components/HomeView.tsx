@@ -22,7 +22,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onAddToCart,
   onAddBundle,
 }) => {
-  const [sortOrder, setSortOrder] = useState<'terbaru' | 'harga-rendah' | 'harga-tinggi' | 'populer'>('terbaru');
+  const [sortOrder, setSortOrder] = useState<'terbaru' | 'harga-rendah' | 'harga-tinggi'>('terbaru');
   const [selectedCardSizes, setSelectedCardSizes] = useState<Record<string, string>>({
     'prod-1': 'L',
     'prod-2': 'M',
@@ -45,7 +45,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
     .sort((a, b) => {
       if (sortOrder === 'harga-rendah') return a.price - b.price;
       if (sortOrder === 'harga-tinggi') return b.price - a.price;
-      if (sortOrder === 'populer') return (b.rating ? 1 : 0) - (a.rating ? 1 : 0);
       return 0;
     });
 
@@ -357,7 +356,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     <option value="terbaru">Urutan: Terbaru</option>
                     <option value="harga-rendah">Harga: Terendah</option>
                     <option value="harga-tinggi">Harga: Tertinggi</option>
-                    <option value="populer">Paling Populer</option>
                   </select>
                   <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface text-[18px]">
                     expand_more
@@ -551,21 +549,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
                         ))}
                       </div>
 
-                      {/* Star rating overlay if present */}
-                      {product.rating && (
-                        <div className="absolute bottom-2 left-2 bg-canvas-base/90 backdrop-blur-xs px-2 py-0.5 flex items-center gap-1">
-                          <span
-                            className="material-symbols-outlined text-[14px] text-badge-soldout"
-                            style={{ fontVariationSettings: "'FILL' 1" }}
-                          >
-                            star
-                          </span>
-                          <span className="font-label-caps text-[11px] font-bold text-primary">
-                            {product.rating.score}
-                          </span>
-                          <span className="text-[10px] text-outline">({product.rating.count})</span>
-                        </div>
-                      )}
 
                       {/* Hover Action Quick Add */}
                       <div

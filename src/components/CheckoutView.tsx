@@ -1,5 +1,13 @@
 import React, { useState } from 'react';
-import { CartItem, Order, formatRupiah } from '../data/storeData';
+import {
+  CartItem,
+  Order,
+  formatRupiah,
+  formatDateTimeId,
+  formatEtaRange,
+  generateOrderNumber,
+  generateVaNumber,
+} from '../data/storeData';
 
 interface CheckoutViewProps {
   cart: CartItem[];
@@ -22,16 +30,14 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
   const [accessMode, setAccessMode] = useState<'guest' | 'member'>('guest');
 
   // Form fields
-  const [email, setEmail] = useState('aditya.pratama@outlook.com');
-  const [phone, setPhone] = useState('812-8879-4321');
-  const [fullName, setFullName] = useState('Aditya Pratama Putra');
-  const [address, setAddress] = useState(
-    'Jl. Senopati Dalam II No. 18B, RT 004 / RW 002 (Pagar Hitam, Depan Kopi Nako), Kebayoran Baru'
-  );
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [address, setAddress] = useState('');
   const [provinsi, setProvinsi] = useState('DKI Jakarta');
   const [kota, setKota] = useState('Jakarta Selatan');
   const [kecamatan, setKecamatan] = useState('Kebayoran Baru');
-  const [kodePos, setKodePos] = useState('12160');
+  const [kodePos, setKodePos] = useState('');
   const [saveAddress, setSaveAddress] = useState(true);
 
   // Courier & Payment
@@ -44,16 +50,13 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
     id: 'jnt',
     name: 'J&T Express Regular',
     cost: 12000,
-    eta: '18 – 20 Nov 2026',
+    eta: formatEtaRange(new Date(), 2, 4),
   });
   const [paymentMethod, setPaymentMethod] = useState<'qris' | 'va' | 'cc'>('qris');
 
   // Voucher state
-  const [voucherInput, setVoucherInput] = useState('URBANFIRST');
-  const [appliedVoucher, setAppliedVoucher] = useState<{ code: string; amount: number } | null>({
-    code: 'URBANFIRST',
-    amount: 50000,
-  });
+  const [voucherInput, setVoucherInput] = useState('');
+  const [appliedVoucher, setAppliedVoucher] = useState<{ code: string; amount: number } | null>(null);
   const [voucherError, setVoucherError] = useState<string | null>(null);
 
   // Validation & Submit
@@ -62,23 +65,6 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
 
   const handleSwitchMode = (mode: 'guest' | 'member') => {
     setAccessMode(mode);
-    if (mode === 'member') {
-      setEmail('naya.rahmadani@email.com');
-      setPhone('812-3456-7890');
-      setFullName('Naya Rahmadani');
-      setAddress('Jl. Senopati No. 42, Kebayoran Baru');
-      setProvinsi('DKI Jakarta');
-      setKota('Jakarta Selatan');
-      setKecamatan('Kebayoran Baru');
-      setKodePos('12160');
-    } else {
-      setEmail('aditya.pratama@outlook.com');
-      setPhone('812-8879-4321');
-      setFullName('Aditya Pratama Putra');
-      setAddress(
-        'Jl. Senopati Dalam II No. 18B, RT 004 / RW 002 (Pagar Hitam, Depan Kopi Nako), Kebayoran Baru'
-      );
-    }
   };
 
   const handleApplyVoucher = () => {
@@ -89,7 +75,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
     } else if (!clean) {
       setVoucherError('Masukkan kode kupon terlebih dahulu.');
     } else {
-      setVoucherError('Kode kupon tidak valid. Gunakan URBANFIRST atau ESSENTIAL2026.');
+      setVoucherError('Kode kupon tidak valid atau sudah tidak berlaku.');
     }
   };
 
@@ -103,17 +89,21 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
   const validateAndSubmit = () => {
     if (cart.length === 0 || isSubmitting) return;
     const errors: Record<string, string> = {};
-    if (!email.trim() || !email.includes('@')) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       errors.email = 'Masukkan alamat surel aktif yang valid (contoh: nama@email.com).';
     }
-    if (!phone.trim() || phone.trim().length < 8) {
-      errors.phone = 'Masukkan nomor WhatsApp/telepon yang valid minimal 8 digit.';
+    const phoneDigits = phone.replace(/[\s-]/g, '').replace(/^(\+62|62|0)/, '');
+    if (!/^8\d{8,12}$/.test(phoneDigits)) {
+      errors.phone = 'Masukkan nomor WhatsApp/telepon Indonesia yang valid (contoh: 812-3456-7890).';
     }
     if (!fullName.trim()) {
       errors.fullName = 'Nama lengkap penerima wajib diisi.';
     }
     if (!address.trim() || address.trim().length < 10) {
       errors.address = 'Mohon lengkapi alamat pengiriman beserta nomor rumah atau RT/RW.';
+    }
+    if (!/^\d{5}$/.test(kodePos.trim())) {
+      errors.kodePos = 'Kode pos harus 5 digit angka.';
     }
     setFormErrors(errors);
     if (Object.keys(errors).length > 0) {
@@ -123,10 +113,11 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
 
     setIsSubmitting(true);
     setTimeout(() => {
+      const now = new Date();
       const newOrder: Order = {
-        id: 'ord-' + Date.now(),
-        orderNumber: '#URBN-202611-8492',
-        dateStr: '17 Nov 2026, 14:12 WIB',
+        id: 'ord-' + now.getTime(),
+        orderNumber: generateOrderNumber(now),
+        dateStr: formatDateTimeId(now),
         status: 'PENDING_PAYMENT',
         paymentMethod:
           paymentMethod === 'va'
@@ -134,17 +125,17 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
             : paymentMethod === 'qris'
             ? 'BCA Virtual Account / QRIS'
             : 'Kartu Kredit / Debit 3DS',
-        vaNumber: '8277 0812 3456 7890',
+        vaNumber: generateVaNumber(),
         subtotal,
         shippingFee,
         discount,
-        voucherCode: appliedVoucher?.code || 'ESSENTIAL2026',
+        voucherCode: appliedVoucher?.code,
         serviceFee,
         total: grandTotal,
         courierName: selectedCourier.name,
         estimatedArrival: selectedCourier.eta,
         recipientName: fullName,
-        recipientPhone: `+62 ${phone}`,
+        recipientPhone: `+62 ${phone.replace(/^(\+62|62|0)/, '').trim()}`,
         recipientEmail: email,
         shippingAddress: `${address}, ${kecamatan}, ${kota}, ${kodePos}`,
         items: cart.map((c) => ({
@@ -170,7 +161,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-space-sm mb-space-md">
             <div>
               <span className="font-label-caps text-label-caps uppercase text-secondary tracking-widest block mb-space-xs">
-                Checkout Transparan • Sesi #UB-9482
+                Checkout Transparan
               </span>
               <h1 className="font-headline-lg text-headline-lg text-on-surface uppercase tracking-tight">
                 Penyelesaian Pesanan
@@ -178,7 +169,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
             </div>
             <div className="flex items-center gap-space-xs text-on-surface-variant font-body-sm text-body-sm bg-surface-muted px-space-sm py-1">
               <span className="material-symbols-outlined text-[18px] text-on-surface">lock</span>
-              <span>Proses Terenkripsi 256-Bit SSL</span>
+              <span>Mode demo — belum ada transaksi nyata</span>
             </div>
           </div>
 
@@ -381,6 +372,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                       <input
                         id="checkout-email"
                         type="email"
+                        placeholder="nama@email.com"
                         required
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
@@ -415,6 +407,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                       <input
                         id="checkout-phone"
                         type="tel"
+                        placeholder="812-3456-7890"
                         required
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
@@ -444,6 +437,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                   <input
                     id="checkout-fullname"
                     type="text"
+                    placeholder="Nama sesuai identitas penerima"
                     required
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
@@ -472,6 +466,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                   <textarea
                     id="checkout-address"
                     rows={3}
+                    placeholder="Nama jalan, nomor rumah, RT/RW, patokan"
                     required
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
@@ -571,10 +566,18 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                     <input
                       id="input-kodepos"
                       type="text"
+                      inputMode="numeric"
+                      maxLength={5}
+                      placeholder="12160"
                       value={kodePos}
                       onChange={(e) => setKodePos(e.target.value)}
                       className="w-full bg-surface-subtle p-space-sm font-body-md text-body-md text-on-surface outline-none focus:bg-canvas-base"
                     />
+                    {formErrors.kodePos && (
+                      <p className="font-body-sm text-body-sm text-error font-medium">
+                        {formErrors.kodePos}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -618,7 +621,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                     badge: 'Termurah',
                     badgeClass: 'bg-badge-promo text-text-on-accent',
                     desc: 'Estimasi tiba: 2 – 3 Hari Kerja • Pelacakan Real-time',
-                    eta: '18 – 20 Nov 2026',
+                    eta: formatEtaRange(new Date(), 2, 4),
                     cost: 12000,
                     tier: 'Standard',
                   },
@@ -628,7 +631,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                     badge: 'Besok Tiba',
                     badgeClass: 'bg-surface-variant text-on-surface-variant',
                     desc: 'Estimasi tiba: 1 Hari Kerja (Pukul 09.00 - 18.00 WIB)',
-                    eta: '18 Nov 2026',
+                    eta: formatEtaRange(new Date(), 1, 1),
                     cost: 18000,
                     tier: 'Next Day',
                   },
@@ -862,13 +865,13 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                 <div className="flex items-center gap-1.5 text-on-surface-variant">
                   <span className="material-symbols-outlined text-[16px]">verified_user</span>
                   <span className="font-label-caps text-[11px] uppercase tracking-wider">
-                    Midtrans Verified Gateway
+                    Gateway pembayaran: segera hadir
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5 text-on-surface-variant">
                   <span className="material-symbols-outlined text-[16px]">encrypted</span>
                   <span className="font-label-caps text-[11px] uppercase tracking-wider">
-                    256-Bit SSL Enkripsi Bank
+                    Mode demo
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5 text-on-surface-variant">

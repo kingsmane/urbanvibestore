@@ -88,7 +88,7 @@ export const AccountView: React.FC<AccountViewProps> = ({
         [orderId]: 'Menunggu Transfer',
       }));
       onShowToast(
-        'Mutasi VA 8277 0812 3456 7890 belum terdeteksi',
+        'Mutasi Virtual Account belum terdeteksi',
         'Silakan selesaikan pembayaran via m-BCA atau ATM'
       );
     }, 1000);
@@ -383,11 +383,11 @@ export const AccountView: React.FC<AccountViewProps> = ({
                               </p>
                               <div className="flex items-center gap-space-sm">
                                 <span className="font-headline-sm text-headline-sm font-bold tracking-widest text-primary font-mono select-all">
-                                  {ord.vaNumber || '8277 0812 3456 7890'}
+                                  {ord.vaNumber}
                                 </span>
                                 <button
                                   type="button"
-                                  onClick={() => handleCopyVa('8277081234567890')}
+                                  onClick={() => handleCopyVa((ord.vaNumber || '').replace(/\s/g, ''))}
                                   className={`inline-flex items-center gap-1 font-label-caps text-label-caps uppercase text-primary hover:text-outline border border-border-hairline px-2 py-1 transition-colors cursor-pointer ${
                                     copiedVa ? 'bg-badge-promo' : 'bg-canvas-base'
                                   }`}

@@ -85,7 +85,7 @@ export const Layout: React.FC<LayoutProps> = ({
         title: 'Kebijakan Privasi',
         subtitle: 'Perlindungan Data Pribadi Pelanggan',
         content: [
-          'UrbanStore menerapkan prinsip minimasi data sesuai standar keamanan informasi modern. Seluruh komunikasi dienkripsi dengan 256-Bit SSL.',
+          'UrbanStore menerapkan prinsip minimasi data sesuai standar keamanan informasi modern. Situs diakses melalui koneksi HTTPS.',
           '• Data nama, alamat, dan nomor telepon hanya digunakan untuk pemrosesan pengiriman logistik dan notifikasi status pesanan.',
           '• Kami tidak menyimpan kredensial kartu kredit/debit; seluruh otorisasi diproses langsung melalui gerbang pembayaran terverifikasi.',
         ],
@@ -341,9 +341,11 @@ export const Layout: React.FC<LayoutProps> = ({
           <p className="font-body-sm text-body-sm font-semibold">
             {toastMessage || 'Produk ditambahkan ke keranjang'}
           </p>
-          <span className="font-label-caps text-[10px] text-badge-promo uppercase block">
-            {toastSubtext || 'Gratis Ongkir Otomatis Diterapkan'}
-          </span>
+          {toastSubtext && (
+            <span className="font-label-caps text-[10px] text-badge-promo uppercase block">
+              {toastSubtext}
+            </span>
+          )}
         </div>
         <button
           type="button"

@@ -41,7 +41,7 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
   };
 
   const handleCopyVa = () => {
-    navigator.clipboard?.writeText('8277081234567890').catch(() => {});
+    navigator.clipboard?.writeText((order.vaNumber || '').replace(/\s/g, '')).catch(() => {});
     setCopiedVa(true);
     setTimeout(() => setCopiedVa(false), 2200);
   };
@@ -196,7 +196,7 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
                       Nomor Virtual Account BCA
                     </span>
                     <span className="font-headline-lg text-headline-lg tracking-wider font-mono text-primary font-bold">
-                      {order.vaNumber || '8277 0812 3456 7890'}
+                      {order.vaNumber}
                     </span>
                     <span className="font-body-sm text-body-sm text-on-surface-variant block mt-0.5">
                       Atas Nama:{' '}
@@ -306,7 +306,7 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
                     <p>
                       Masukkan kode Virtual Account{' '}
                       <span className="font-mono font-bold text-primary">
-                        8277 0812 3456 7890
+                        {order.vaNumber}
                       </span>{' '}
                       lalu tekan <strong>Send</strong>.
                     </p>
@@ -367,7 +367,7 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
                     <p>
                       Input nomor{' '}
                       <span className="font-mono font-bold text-primary">
-                        8277 0812 3456 7890
+                        {order.vaNumber}
                       </span>{' '}
                       dan klik <strong>Lanjutkan</strong>.
                     </p>
@@ -411,7 +411,7 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
                     <p>
                       Ketikkan kode VA{' '}
                       <span className="font-mono font-bold text-primary">
-                        8277 0812 3456 7890
+                        {order.vaNumber}
                       </span>{' '}
                       lalu tekan <strong>Benar</strong>.
                     </p>
@@ -648,7 +648,7 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
                   <div className="flex justify-between text-secondary font-medium">
                     <span className="flex items-center gap-1">
                       <span className="material-symbols-outlined text-[16px]">sell</span>
-                      Kupon: {order.voucherCode || 'ESSENTIAL2026'}
+                      Kupon: {order.voucherCode || '-'}
                     </span>
                     <span className="font-mono font-bold">-{formatRupiah(order.discount)}</span>
                   </div>

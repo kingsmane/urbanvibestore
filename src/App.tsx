@@ -127,7 +127,7 @@ export default function App() {
     }
   }, [fitProfile]);
 
-  const showToast = (msg: string, sub = 'Gratis Ongkir Otomatis Diterapkan') => {
+  const showToast = (msg: string, sub?: string) => {
     setToastMessage(msg);
     setToastSubtext(sub);
     if (toastTimerRef.current) {
@@ -289,7 +289,8 @@ export default function App() {
   };
 
   const handleCompleteOrder = (newOrder: Order) => {
-    setOrders((prev) => [newOrder, ...prev.filter((o) => o.orderNumber !== newOrder.orderNumber)]);
+    setOrders((prev) => [newOrder, ...prev]);
+    setCart([]);
     setActiveConfirmationOrder(newOrder);
     setCurrentPage('order-confirmation');
     window.scrollTo({ top: 0, behavior: 'smooth' });

@@ -127,7 +127,6 @@ export const PRODUCTS: Product[] = [
       { text: 'New Drop', variant: 'white' },
       { text: '280 GSM', variant: 'promo' },
     ],
-    rating: { score: '4.9', count: 128 },
     image:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuCxohio_lrkWtKrdiB3ljAk78Wb6ahTapEIq6L3HppyfVZItVm_Ir2J9KyJVwzbSo98vVP49fo1NTDmonmG5j6BHNIWu95oQE42KeJFJEsH1qFMbn6Twg3uRGB19pkt54BvnGDKCSzNn5cStsAWonwTDawMbEd6gpnDp5qgbciS4GI431yqWcIR1Apuyfam2D_y4pZ75LoEubGS-2GWno-kYevcRc6xWrXAfIWezfxM',
     gallery: [
@@ -442,32 +441,44 @@ export const PRODUCTS: Product[] = [
   },
 ];
 
-export const PAIRING_PRODUCTS = [
+const catalogPrice = (id: string): number => PRODUCTS.find((p) => p.id === id)?.price ?? 0;
+
+export interface PairingProduct {
+  id: string;
+  badge: string;
+  badgeVariant: 'new' | 'promo' | 'none';
+  categoryLabel: string;
+  name: string;
+  price: number;
+  originalPrice?: number;
+  image: string;
+}
+
+export const PAIRING_PRODUCTS: PairingProduct[] = [
   {
     id: 'prod-3',
     badge: 'Pairing 01',
-    badgeVariant: 'new' as const,
+    badgeVariant: 'new',
     categoryLabel: 'Bawahan',
     name: 'Pleated Wide-Leg Trousers',
-    price: 529000,
+    price: catalogPrice('prod-3'),
     image:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuDV9fKkWm1cOMCD4NNYuqsCMJs3yIW-DFnjknp2ok4YWRKP9NrM1XOyx7PcFyLsL2QHAvVzKU-z4pF8epI0OWMr7SD6nVtbOEf5soAMcyDKcXIeXlg-X9qamfgsb5-PTyYSLIqamwMopiGcv1PhZQ03mNEwYBgno8Kd5drvmTOFsveAoflRStJrs6diTQrYGyzjVKXwnWSa3dP-Qar9jiMGkMZmrhxqEGrUTu1IfojM',
   },
   {
     id: 'prod-7',
-    badge: 'Promo',
-    badgeVariant: 'promo' as const,
+    badge: '',
+    badgeVariant: 'none',
     categoryLabel: 'Aksesoris',
     name: 'Modular Crossbody Pack',
-    price: 289000,
-    originalPrice: 349000,
+    price: catalogPrice('prod-7'),
     image:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuDhHjuJxONw08c30wMaQFAucDirLqMUmERZkWjq_mZZb1djB_sVQ388AdHJ7JS8JXkswS8fS781v1i31mByNp1bXMbJs-B_v-DFum4CYFjt_u-K79zDaf5LjwUz_AQgSXsPCaIoyWYczcYW0GyzGjPTMfNvpKY24q7BTdNDca-deCRuL6HvFYTcZPtLuaK2-wwg0BCc2lxJuEYnLSYWi_Hs41J1kNTKFD_JUuPMx1sZ',
   },
   {
     id: 'prod-derbies',
     badge: '',
-    badgeVariant: 'none' as const,
+    badgeVariant: 'none',
     categoryLabel: 'Alas Kaki',
     name: 'Vibram Sole Leather Derbies',
     price: 899000,
@@ -477,7 +488,7 @@ export const PAIRING_PRODUCTS = [
   {
     id: 'prod-socks',
     badge: '',
-    badgeVariant: 'none' as const,
+    badgeVariant: 'none',
     categoryLabel: 'Aksesoris',
     name: 'Heavy Ribbed Socks (2-Pack)',
     price: 99000,
@@ -486,36 +497,7 @@ export const PAIRING_PRODUCTS = [
   },
 ];
 
-export const INITIAL_CART: CartItem[] = [
-  {
-    id: 'cart-1',
-    productId: 'prod-1',
-    sku: 'UB-HVY-BLK-L',
-    name: 'Oversized Heavyweight Tee',
-    price: 249000,
-    color: 'Charcoal Black',
-    size: 'L',
-    quantity: 1,
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuCQ3M411iDLlZpkXXL3wj0NsmLXRc2kchYvSL7pzWMvJ9YsS16etF-afPK4UcCLfKsXwaUnSNqQ5wnsbdM945KhCqv-HejeQe5J_lErOG6g4Hd5zpDkVxsMHH9ToR7Z7Cb6J63ww1OyZgPe9S0gL2-iNVKi3rv34NOYieTMg6DJU-YquB9Trv6ARrUSLFPgSVR99jS5EpOVO5Iq7hilUpV-wBd3ktZgPvtcwaxv27bM',
-    badgeText: 'Esensial',
-    badgeVariant: 'promo',
-  },
-  {
-    id: 'cart-2',
-    productId: 'prod-2',
-    sku: 'UB-LIN-SND-M',
-    name: 'Boxy Minimalist Linen Shirt',
-    price: 389000,
-    color: 'Sand Beige',
-    size: 'M',
-    quantity: 1,
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuC3weazbwFp09QW0IKGsZZ_stVr1gqbiP-i3VLrM9L-te6H3pFOhpKnhL23HWMtLWw4o_mDnA04J-DyYUiismvaHAniuGaWnba-dwyD7bJ1fpAvEgXMpcYOzNSZ9CzNHRA48oWvCNym0iuYJ4pNNL_VUR4f-DgEXQgi0IcSvH-ey_2X6cVps9Oz8150ZExts9G5XUEOwAxi6QTNyncqxVCSFzzBpdy1XbumtP9NsXrB',
-    badgeText: 'New',
-    badgeVariant: 'dark',
-  },
-];
+export const INITIAL_CART: CartItem[] = [];
 
 export const INITIAL_ORDERS: Order[] = [
   {
@@ -544,7 +526,7 @@ export const INITIAL_ORDERS: Order[] = [
         size: 'L',
         sku: 'URBN-TSH-HVY-CH-L',
         quantity: 1,
-        price: 289000,
+        price: 249000,
         fitProfileMatch: true,
         image:
           'https://lh3.googleusercontent.com/aida-public/AB6AXuC9neDPQ85zVWsDk6bRrAsI55-acLCVqlQUYwfETKwQfreQ6v1AO43bLT58hT-25VdkGaT4Cr5UwhRVvaCOZfW9vskx3qopG3Eb-cmTQa1P4kcnLoq-03mr0x2OOspZnahmkvh34WoFoytBTV2lLdbtGhjjSsTpBNuopw0kehGadel_IBBfGaXCZ_GTY3i4tKwFKC-GHThIXWMyvPlBek_qkdbfvn-CIolfmn1BFCZL',
@@ -555,7 +537,7 @@ export const INITIAL_ORDERS: Order[] = [
         size: 'M',
         sku: 'URBN-SHT-LNN-SD-M',
         quantity: 1,
-        price: 312000,
+        price: 389000,
         image:
           'https://lh3.googleusercontent.com/aida-public/AB6AXuCABh2P6ttxQg4XX6S5hoKV2Eo7gxUWh2jKkdcN6gmTIYzhlv5Amse6EM-vMGeZpiVKh_2n2jSddLyELl2C93rJO84c93_7f8dNcwZi68zwoNPeQmpI486ZZVi6x92dBdi1bJNE_HmkFg5A-CW2SF1F3n9WVFaN1ISk-vvGfHQMF-ddgChKhsomshlc2XOmhugIcX6POR6NdhD89HM-CaMUey5T0uWV-r3YDSN1-Q29',
       },
@@ -658,3 +640,40 @@ export const INITIAL_FIT_PROFILE: FitProfile = {
   recommendedBottom: 'Size 27',
   calculatedSize: 'L',
 };
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const MONTHS_ID = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+export const formatDateId = (d: Date): string =>
+  `${d.getDate()} ${MONTHS_ID[d.getMonth()]} ${d.getFullYear()}`;
+
+export const formatDateTimeId = (d: Date): string =>
+  `${formatDateId(d)}, ${pad2(d.getHours())}:${pad2(d.getMinutes())} WIB`;
+
+export const addDays = (d: Date, days: number): Date => {
+  const r = new Date(d);
+  r.setDate(r.getDate() + days);
+  return r;
+};
+
+/** Rentang estimasi tiba, mis. "24 – 26 Nov 2026". */
+export const formatEtaRange = (from: Date, minDays: number, maxDays: number): string => {
+  const a = addDays(from, minDays);
+  const b = addDays(from, maxDays);
+  if (minDays === maxDays) return formatDateId(a);
+  const sameMonth = a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
+  return sameMonth
+    ? `${a.getDate()} – ${formatDateId(b)}`
+    : `${formatDateId(a)} – ${formatDateId(b)}`;
+};
+
+const randomDigits = (len: number): string =>
+  Array.from({ length: len }, () => Math.floor(Math.random() * 10)).join('');
+
+/** Nomor order unik per pesanan, mis. #URBN-202611-4821. */
+export const generateOrderNumber = (d = new Date()): string =>
+  `#URBN-${d.getFullYear()}${pad2(d.getMonth() + 1)}-${randomDigits(4)}`;
+
+/** Nomor VA demo (16 digit, dipisah per 4). Placeholder sampai ada gateway pembayaran. */
+export const generateVaNumber = (): string =>
+  ['8277', randomDigits(4), randomDigits(4), randomDigits(4)].join(' ');
